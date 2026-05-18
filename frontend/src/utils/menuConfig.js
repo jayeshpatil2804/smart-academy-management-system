@@ -6,6 +6,7 @@ export const MENU_CONFIG = [
     subItems: [
       { title: 'Admin Home', path: '/home' },
       { title: 'Banner Home', path: '/master/manage-banners' },
+      { title: 'Home Sub-Sections', path: '/master/home-sections' },
       { title: 'Gallery Manage', path: '/master/gallery' }
     ]
   },

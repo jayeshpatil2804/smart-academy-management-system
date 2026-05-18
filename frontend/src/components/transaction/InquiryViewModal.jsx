@@ -20,23 +20,23 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm print:hidden">
             <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn flex flex-col max-h-[90vh]">
-                
+
                 {/* Header */}
                 <div className="bg-blue-600 text-white p-4 flex justify-between items-center print:hidden">
                     <h2 className="text-lg font-bold flex items-center gap-2">
                         Inquiry Details
                     </h2>
                     <div className="flex gap-2">
-                         {/* <button onClick={handlePrint} className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 hover:bg-blue-50 transition">
+                        {/* <button onClick={handlePrint} className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 hover:bg-blue-50 transition">
                             <Printer size={16}/> Print
                         </button> */}
-                        <button onClick={onClose} className="text-white hover:text-red-200 transition"><X size={24}/></button>
+                        <button onClick={onClose} className="text-white hover:text-red-200 transition"><X size={24} /></button>
                     </div>
                 </div>
 
                 {/* Printable Content */}
                 <div className="p-8 overflow-y-auto print:p-0 print:overflow-visible">
-                    
+
                     {/* Print Header (Only visible when printing or in this view) */}
                     <div className="mb-6 border-b pb-4">
                         <h1 className="text-2xl font-bold text-gray-800 text-center uppercase tracking-wide">Inquiry Information</h1>
@@ -44,7 +44,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                     </div>
 
                     <div className="space-y-6 text-sm">
-                        
+
                         {/* Student Detail Section */}
                         <div>
                             <div className="bg-gray-50 p-2 font-bold text-blue-800 uppercase text-xs tracking-wider border-l-4 border-blue-500 mb-4">
@@ -55,10 +55,10 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                 <div className="flex-shrink-0">
                                     {inquiry.studentPhoto ? (
                                         <div className="text-center">
-                                            <img 
+                                            <img
                                                 src={inquiry.studentPhoto.startsWith('http') ? inquiry.studentPhoto : `${import.meta.env.VITE_API_URL}/${inquiry.studentPhoto}`}
                                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/150?text=No+Image"; }}
-                                                alt="Student" 
+                                                alt="Student"
                                                 className="w-32 h-32 rounded-lg object-cover border-2 border-gray-300 shadow-md"
                                             />
                                         </div>
@@ -68,7 +68,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 {/* Fields Grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 flex-grow">
                                     {/* Row 1 */}
@@ -108,7 +108,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                     </div>
                                     <div>
                                         <span className="block text-gray-500 text-xs uppercase font-semibold">Contact No (O)</span>
-                                        <span className="font-medium text-gray-900">{'-'}</span> 
+                                        <span className="font-medium text-gray-900">{'-'}</span>
                                     </div>
 
                                     {/* Row 5 */}
@@ -153,16 +153,16 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                     <span className="font-medium text-gray-900">{inquiry.allocatedTo?.name || '-'}</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                     <div>
+                                    <div>
                                         <span className="block text-gray-500 text-xs uppercase font-semibold">Visiting Date</span>
                                         <span className="font-medium text-gray-900">{formatDate(inquiry.inquiryDate)}</span>
-                                     </div>
-                                     <div>
+                                    </div>
+                                    <div>
                                         <span className="block text-gray-500 text-xs uppercase font-semibold">Visiting Time</span>
                                         <span className="font-medium text-gray-900">
                                             {inquiry.inquiryDate ? new Date(inquiry.inquiryDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                                         </span>
-                                     </div>
+                                    </div>
                                 </div>
                                 <div className="md:col-span-2">
                                     <span className="block text-gray-500 text-xs uppercase font-semibold">Followup Detail</span>
@@ -171,11 +171,11 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                     </div>
                                 </div>
                                 <div className="md:col-span-2 mt-2 pt-2 border-t">
-                                     <span className="block text-blue-600 text-xs uppercase font-semibold">Next Followup Schedule</span>
-                                     <span className="font-bold text-gray-900">
-                                         {inquiry.nextVisitingDate ? formatDate(inquiry.nextVisitingDate) + (inquiry.nextVisitingDate && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0530 (India Standard Time)' && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' ? ' at ' + new Date(inquiry.nextVisitingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') : 'Not Scheduled'}
-                                     </span>
-                                     {inquiry.visitReason && <span className="text-gray-500 ml-2">({inquiry.visitReason})</span>}
+                                    <span className="block text-blue-600 text-xs uppercase font-semibold">Next Followup Schedule</span>
+                                    <span className="font-bold text-gray-900">
+                                        {inquiry.nextVisitingDate ? formatDate(inquiry.nextVisitingDate) + (inquiry.nextVisitingDate && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0530 (India Standard Time)' && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' ? ' at ' + new Date(inquiry.nextVisitingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') : 'Not Scheduled'}
+                                    </span>
+                                    {inquiry.visitReason && <span className="text-gray-500 ml-2">({inquiry.visitReason})</span>}
                                 </div>
                             </div>
                         </div>
@@ -204,7 +204,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                         </div>
 
                     </div>
-                    
+
                     <div className="mt-8 pt-8 border-t text-center text-xs text-gray-400">
                         <p>Compass Education ERP System</p>
                     </div>

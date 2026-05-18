@@ -4,7 +4,7 @@ import { fetchMaterials, createMaterial, updateMaterial, deleteMaterial, resetSt
 import { fetchSubjects } from '../../../features/master/masterSlice';
 import { toast } from 'react-toastify';
 import moment from 'moment';
-import { Search, Save, RefreshCw, Trash2, Edit, FileText, Plus, X } from 'lucide-react';
+import { Search, Save, RefreshCw, Trash2, Edit, FileText, Plus, X, Download } from 'lucide-react';
 
 const Material = () => {
     const dispatch = useDispatch();
@@ -14,7 +14,7 @@ const Material = () => {
     // Initial State for Filters
     const initialFilters = {
         fromDate: '',
-        toDate: new Date().toISOString().split('T')[0],
+        toDate: '',
         type: '',
         searchBy: 'title', // Default
         value: '',
@@ -76,23 +76,21 @@ const Material = () => {
         e.preventDefault();
         if (!formData.subject) return toast.error('Please select a subject');
         if (!formData.title) return toast.error('Please enter a title');
-        if (!formData.subject) return toast.error('Please select a subject');
-        if (!formData.title) return toast.error('Please enter a title');
-        // Document is optional now
 
-        const data = {
-            subject: formData.subject,
-            title: formData.title,
-            type: formData.type,
-            description: formData.description,
-            isActive: formData.isActive,
-            document: formData.document
-        };
+        const fd = new FormData();
+        fd.append('subject', formData.subject);
+        fd.append('title', formData.title);
+        fd.append('type', formData.type);
+        fd.append('description', formData.description || '');
+        fd.append('isActive', formData.isActive);
+        if (formData.document) {
+            fd.append('document', formData.document);
+        }
 
         if (formData.id) {
-            dispatch(updateMaterial({ id: formData.id, data }));
+            dispatch(updateMaterial({ id: formData.id, data: fd }));
         } else {
-            dispatch(createMaterial(data));
+            dispatch(createMaterial(fd));
         }
     };
 
@@ -266,8 +264,10 @@ const Material = () => {
                                         <td className="p-2 border">{moment(m.createdAt).format('DD/MM/YYYY')}</td>
                                         <td className="p-2 border text-center">
                                             {m.document ? (
-                                                <a href={`${import.meta.env.VITE_API_URL.replace('/api', '')}/${m.document}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-semibold">Yes</a>
-                                            ) : <span className="text-red-500">No</span>}
+                                                <a href={`${import.meta.env.VITE_API_URL}/materials/download/${m._id}`} download className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors shadow-sm font-semibold">
+                                                    <Download size={14} /> Download
+                                                </a>
+                                            ) : <span className="text-red-500 font-medium">No File</span>}
                                         </td>
                                         <td className="p-2 border text-center">
                                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${

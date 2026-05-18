@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// Each gallery entry = one event/album with a title, description, category, and photos
+// Each gallery entry = one event/album with a title, description, category, photos, and optional video link
 const gallerySchema = new mongoose.Schema({
     title: {
         type: String,
@@ -17,7 +17,12 @@ const gallerySchema = new mongoose.Schema({
         required: [true, 'Please provide a category'],
         trim: true
     },
-    images: [{ type: String }], // Array of image URLs only
+    videoLink: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    images: [{ type: String }], // Array of image URLs
     isActive: {
         type: Boolean,
         default: true

@@ -79,7 +79,7 @@ const createEmployee = asyncHandler(async (req, res) => {
     }
 
     if (req.file) {
-        req.body.photo = req.file.path;
+        req.body.photo = req.file.path.replace(/\\/g, "/");
     }
 
     const empExists = await Employee.findOne({ email });
@@ -225,7 +225,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
     } = req.body;
 
     if (req.file) {
-        req.body.photo = req.file.path;
+        req.body.photo = req.file.path.replace(/\\/g, "/");
     }
 
     const employee = await Employee.findById(id);

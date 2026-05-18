@@ -1,23 +1,27 @@
 const Gallery = require('../models/Gallery');
+const GalleryCategory = require('../models/GalleryCategory');
 const asyncHandler = require('express-async-handler');
 
 // @desc    Create new gallery event/album
 // @route   POST /api/galleries
 // @access  Private
 const createGallery = asyncHandler(async (req, res) => {
-    const { title, description, category, isActive } = req.body;
+    const { title, description, category, videoLink, isActive } = req.body;
 
     if (!title) { res.status(400); throw new Error('Title is required'); }
     if (!category) { res.status(400); throw new Error('Category is required'); }
-    if (!req.files || req.files.length === 0) { res.status(400); throw new Error('At least one image is required'); }
-    if (req.files.length > 5) { res.status(400); throw new Error('Maximum 5 images allowed per upload'); }
+    if ((!req.files || req.files.length === 0) && (!videoLink || !videoLink.trim())) { 
+        res.status(400); throw new Error('Please upload at least one image or provide a video link'); 
+    }
+    if (req.files && req.files.length > 5) { res.status(400); throw new Error('Maximum 5 images allowed per upload'); }
 
-    const images = req.files.map(f => f.path);
+    const images = req.files ? req.files.map(f => f.path.replace(/\\/g, "/")) : [];
 
     const gallery = await Gallery.create({
         title,
         description: description || '',
         category,
+        videoLink: videoLink || '',
         images,
         isActive: isActive !== undefined ? (isActive === 'true' || isActive === true) : true
     });
@@ -35,7 +39,7 @@ const addImages = asyncHandler(async (req, res) => {
     if (!req.files || req.files.length === 0) { res.status(400); throw new Error('Please upload at least one image'); }
     if (req.files.length > 5) { res.status(400); throw new Error('Maximum 5 images allowed at once'); }
 
-    const newImages = req.files.map(f => f.path);
+    const newImages = req.files.map(f => f.path.replace(/\\/g, "/"));
     gallery.images.push(...newImages);
     await gallery.save();
 
@@ -50,12 +54,13 @@ const getGalleries = asyncHandler(async (req, res) => {
     res.json(galleries);
 });
 
-// @desc    Get distinct active categories
+// @desc    Get distinct active categories or all active gallery categories
 // @route   GET /api/galleries/categories
 // @access  Public
 const getPublicCategories = asyncHandler(async (req, res) => {
-    const cats = await Gallery.distinct('category', { isActive: true });
-    res.json(cats);
+    const cats = await GalleryCategory.find({ isActive: true }).sort('name');
+    const catNames = cats.map(c => c.name);
+    res.json(catNames);
 });
 
 // @desc    Get public gallery events (Active only), optional ?category=
@@ -63,7 +68,7 @@ const getPublicCategories = asyncHandler(async (req, res) => {
 // @access  Public
 const getPublicGalleries = asyncHandler(async (req, res) => {
     const filter = { isActive: true };
-    if (req.query.category) filter.category = req.query.category;
+    if (req.query.category && req.query.category !== 'All') filter.category = req.query.category;
     const galleries = await Gallery.find(filter).sort('-createdAt');
     res.json(galleries);
 });
@@ -81,13 +86,14 @@ const getGalleryById = asyncHandler(async (req, res) => {
 // @route   PUT /api/galleries/:id
 // @access  Private
 const updateGallery = asyncHandler(async (req, res) => {
-    const { title, description, category, isActive } = req.body;
+    const { title, description, category, videoLink, isActive } = req.body;
     const gallery = await Gallery.findById(req.params.id);
     if (!gallery) { res.status(404); throw new Error('Gallery not found'); }
 
     if (title) gallery.title = title;
     if (description !== undefined) gallery.description = description;
     if (category) gallery.category = category;
+    if (videoLink !== undefined) gallery.videoLink = videoLink;
     if (isActive !== undefined) gallery.isActive = isActive === 'true' || isActive === true;
 
     const updated = await gallery.save();

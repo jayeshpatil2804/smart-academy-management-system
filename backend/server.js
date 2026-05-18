@@ -85,6 +85,7 @@ app.use("/api/topper-results", require("./routes/topperResultRoutes")); // Toppe
 app.use("/api/student-portal", require("./routes/studentPortalRoutes")); // New Student Portal Routes
 app.use("/api/blogs", require("./routes/blogRoutes")); // Blog Routes
 app.use("/api/banners", require("./routes/bannerRoutes")); // Banner Routes
+app.use("/api/home-sections", require("./routes/homeSectionRoutes")); // Home Sections
 app.use("/api/galleries", require("./routes/galleryRoutes")); // Gallery Routes
 app.use("/api/feedback", require("./routes/feedbackRoutes")); // Feedback Routes
 

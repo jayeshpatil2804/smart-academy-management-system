@@ -89,9 +89,22 @@ const getStudents = asyncHandler(async (req, res) => {
         .populate('userId', 'username')
         .limit(limit)
         .skip(limit * (pageNum - 1))
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
-    res.json({ students, page: pageNum, pages: Math.ceil(count / limit), count });
+    const studentIds = students.map(s => s._id);
+    const examResults = await ExamResult.find({ student: { $in: studentIds }, isDeleted: false }).lean();
+    const resultMap = {};
+    examResults.forEach(r => {
+        resultMap[r.student.toString()] = r;
+    });
+
+    const studentsWithResults = students.map(s => ({
+        ...s,
+        examResult: resultMap[s._id.toString()] || null
+    }));
+
+    res.json({ students: studentsWithResults, page: pageNum, pages: Math.ceil(count / limit), count });
 });
 
 // ... (Rest of the controller functions remain unchanged)
@@ -462,6 +475,11 @@ const getNextRegNo = asyncHandler(async (req, res) => {
 });
 
 const deleteStudent = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'Super Admin') {
+        res.status(403);
+        throw new Error('Only Super Admin can delete students. Please contact the Admin.');
+    }
+
     const student = await Student.findById(req.params.id);
     if (student) {
         await FeeReceipt.deleteMany({ student: student._id });
@@ -753,6 +771,19 @@ const getExamPendingStudents = asyncHandler(async (req, res) => {
     });
 });
 
+const getUniqueReferences = asyncHandler(async (req, res) => {
+    let query = { isDeleted: false };
+    
+    if (req.user.role !== 'Super Admin' && req.user.branchId) {
+        query.branchId = req.user.branchId;
+    }
+
+    const references = await Student.distinct('reference', query);
+    // Filter out null, undefined, or empty strings and sort
+    const filteredReferences = references.filter(r => r && r.trim() !== '').sort();
+    res.json(filteredReferences);
+});
+
 module.exports = { 
     getStudents, 
     getStudentById, 
@@ -765,5 +796,6 @@ module.exports = {
     getNextRegNo, 
     cancelStudent,
     reactivateStudent,
-    getExamPendingStudents 
+    getExamPendingStudents,
+    getUniqueReferences
 };

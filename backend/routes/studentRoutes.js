@@ -15,11 +15,15 @@ const {
     cancelStudent,
     reactivateStudent,
     getNextRegNo,
-    getExamPendingStudents
+    getExamPendingStudents,
+    getUniqueReferences
 } = require('../controllers/studentController');
 
 router.route('/exam-pending')
     .get(protect, checkPermission('Student', 'view'), getExamPendingStudents);
+
+router.route('/unique-references')
+    .get(protect, checkPermission('Student', 'view'), getUniqueReferences);
 
 router.route('/')
     .get(protect, checkPermission('Student', 'view'), getStudents)

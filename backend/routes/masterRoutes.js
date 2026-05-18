@@ -38,7 +38,7 @@ router.route('/batch/:id')
 
 // --- Subject Routes ---
 router.route('/subject')
-    .get(protect, checkPermission('Subject', 'view'), getSubjects)
+    .get(getSubjects) // Public/General Access for dropdowns
     .post(protect, checkPermission('Subject', 'add'), createSubject);
 
 router.route('/subject/:id')

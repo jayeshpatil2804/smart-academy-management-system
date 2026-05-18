@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Image as ImageIcon, Plus, Search, Edit, Trash2, X, Crop as CropIcon } from 'lucide-react';
+import { Image as ImageIcon, Plus, Search, Edit, Trash2, X, Crop as CropIcon, Eye, EyeOff } from 'lucide-react';
 import bannerService from '../../../services/bannerService';
 import { toast } from 'react-toastify';
 import Cropper from 'react-easy-crop';
@@ -119,6 +119,19 @@ const ManageBanners = () => {
         setImagePreview(banner.image);
         setImageFile(null);
         setShowModal(true);
+    };
+
+    const handleToggleActive = async (banner) => {
+        try {
+            const data = new FormData();
+            data.append('title', banner.title || '');
+            data.append('isActive', !banner.isActive);
+            await bannerService.updateBanner(banner._id, data);
+            toast.success(`Banner ${!banner.isActive ? 'activated' : 'deactivated'} successfully`);
+            fetchBanners();
+        } catch (error) {
+            toast.error('Failed to update banner status');
+        }
     };
 
     const handleDelete = async (id) => {
@@ -250,6 +263,9 @@ const ManageBanners = () => {
                                         </td>
                                         <td className="p-3 text-center">
                                             <div className="flex justify-center gap-2">
+                                                <button onClick={() => handleToggleActive(banner)} className={`p-1 ${banner.isActive ? 'text-green-500 hover:text-green-700' : 'text-gray-400 hover:text-gray-600'}`} title={banner.isActive ? 'Deactivate' : 'Activate'}>
+                                                    {banner.isActive ? <Eye size={16} /> : <EyeOff size={16} />}
+                                                </button>
                                                 <button onClick={() => handleEdit(banner)} className="text-blue-500 hover:text-blue-700 p-1" title="Edit">
                                                     <Edit size={16} />
                                                 </button>

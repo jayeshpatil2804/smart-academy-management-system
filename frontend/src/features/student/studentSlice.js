@@ -207,10 +207,25 @@ export const fetchExamPendingStudents = createAsyncThunk(
   }
 );
 
+export const fetchUniqueReferences = createAsyncThunk(
+  "students/fetchUniqueReferences",
+  async (_, thunkAPI) => {
+    try {
+      const response = await axios.get(`${API_URL}unique-references`);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || error.message
+      );
+    }
+  }
+);
+
 const studentSlice = createSlice({
   name: "students",
   initialState: {
     students: [],
+    uniqueReferences: [],
     examPendingStudents: [],
     examPendingPagination: { page: 1, pages: 1, count: 0 },
     currentStudent: null,
@@ -243,6 +258,9 @@ const studentSlice = createSlice({
       .addCase(fetchStudents.rejected, (state, action) => {
         state.isLoading = false;
         state.students = [];
+      })
+      .addCase(fetchUniqueReferences.fulfilled, (state, action) => {
+        state.uniqueReferences = action.payload;
       })
       .addCase(fetchStudentById.pending, (state) => {
         state.isLoading = true;

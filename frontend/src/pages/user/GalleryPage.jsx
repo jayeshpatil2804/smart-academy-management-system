@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ImageIcon, X, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { ImageIcon, X, ChevronLeft, ChevronRight, Layers, Video, Play, Eye } from 'lucide-react';
 import galleryService from '../../services/galleryService';
 
-// ── Lightbox ──────────────────────────────────────────────────────────────────
+// ── Lightbox for Images ───────────────────────────────────────────────────────
 const Lightbox = ({ images, startIndex, onClose }) => {
     const [current, setCurrent] = useState(startIndex);
 
@@ -18,40 +18,40 @@ const Lightbox = ({ images, startIndex, onClose }) => {
     }, [images.length, onClose]);
 
     return (
-        <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center" onClick={onClose}>
-            <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 rounded-full p-2 z-10">
+        <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center backdrop-blur-md animate-fadeIn" onClick={onClose}>
+            <button onClick={onClose} className="absolute top-6 right-6 text-white/80 hover:text-white bg-white/10 rounded-full p-3 z-10 hover:bg-white/20 transition shadow-lg">
                 <X size={24} />
             </button>
-            <div className="absolute top-5 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium z-10">
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 text-white/80 font-bold bg-white/10 px-4 py-1.5 rounded-full text-sm backdrop-blur z-10 shadow">
                 {current + 1} / {images.length}
             </div>
             {images.length > 1 && (
                 <button onClick={e => { e.stopPropagation(); setCurrent(c => (c - 1 + images.length) % images.length); }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 z-10 transition">
-                    <ChevronLeft size={28} />
+                    className="absolute left-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-4 z-10 transition shadow-xl hover:scale-110 active:scale-95">
+                    <ChevronLeft size={32} />
                 </button>
             )}
             <motion.img
                 key={current}
-                src={images[current]}
+                src={images[current].startsWith('http') ? images[current] : `${import.meta.env.VITE_API_URL.replace('/api', '')}/${images[current]}`}
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.2 }}
-                className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                className="max-h-[80vh] max-w-[85vw] object-contain rounded-xl shadow-2xl border border-white/10"
                 onClick={e => e.stopPropagation()}
             />
             {images.length > 1 && (
                 <button onClick={e => { e.stopPropagation(); setCurrent(c => (c + 1) % images.length); }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 z-10 transition">
-                    <ChevronRight size={28} />
+                    className="absolute right-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-4 z-10 transition shadow-xl hover:scale-110 active:scale-95">
+                    <ChevronRight size={32} />
                 </button>
             )}
             {images.length > 1 && (
-                <div className="absolute bottom-4 flex gap-2 justify-center overflow-x-auto max-w-full px-4">
+                <div className="absolute bottom-6 flex gap-3 justify-center overflow-x-auto max-w-full px-6 py-2">
                     {images.map((img, idx) => (
                         <button key={idx} onClick={e => { e.stopPropagation(); setCurrent(idx); }}
-                            className={`w-12 h-12 flex-shrink-0 rounded overflow-hidden border-2 transition-all ${idx === current ? 'border-pink-400 scale-110' : 'border-white/20 opacity-50 hover:opacity-80'}`}>
-                            <img src={img} alt="" className="w-full h-full object-cover" />
+                            className={`w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all shadow-md ${idx === current ? 'border-pink-500 scale-110 ring-4 ring-pink-500/30' : 'border-white/20 opacity-50 hover:opacity-90'}`}>
+                            <img src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL.replace('/api', '')}/${img}`} alt="" className="w-full h-full object-cover" />
                         </button>
                     ))}
                 </div>
@@ -60,41 +60,72 @@ const Lightbox = ({ images, startIndex, onClose }) => {
     );
 };
 
-// ── Event Photo Grid (group view — one title/desc, all photos) ────────────────
-const EventPhotos = ({ event, onBack }) => {
+// ── Event Detail View (Video + Photos) ────────────────────────────────────────
+const EventDetailView = ({ event, onBack }) => {
     const [lightboxIndex, setLightboxIndex] = useState(null);
 
     return (
-        <div>
-            <button onClick={onBack} className="flex items-center gap-1 text-pink-600 hover:text-pink-700 font-semibold text-sm mb-6">
-                <ChevronLeft size={18} /> Back to {event.category}
+        <div className="animate-fadeIn">
+            <button onClick={onBack} className="flex items-center gap-2 text-pink-600 hover:text-pink-700 font-extrabold text-base mb-8 bg-pink-50 px-4 py-2 rounded-xl w-fit shadow-sm transition hover:pr-5">
+                <ChevronLeft size={20} /> Back to {event.category}
             </button>
 
-            {/* Single group title + description */}
-            <div className="mb-8">
-                <span className="inline-block text-xs font-bold uppercase tracking-wider bg-pink-50 text-pink-600 border border-pink-200 rounded px-2 py-0.5 mb-2">
-                    {event.category}
-                </span>
-                <h2 className="text-3xl font-extrabold text-gray-800">{event.title}</h2>
-                {event.description && <p className="text-gray-500 mt-2 max-w-2xl">{event.description}</p>}
-                <p className="text-xs text-gray-400 mt-2">{event.images?.length || 0} photos</p>
+            {/* Title + description */}
+            <div className="mb-10 bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <span className="inline-block text-xs font-extrabold uppercase tracking-wider bg-pink-100 text-pink-700 rounded-full px-3 py-1 shadow-sm">
+                        {event.category}
+                    </span>
+                    {event.videoLink && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider bg-purple-100 text-purple-700 rounded-full px-3 py-1 shadow-sm">
+                            <Video size={14} /> Video Feature
+                        </span>
+                    )}
+                </div>
+                <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tight">{event.title}</h2>
+                {event.description && <p className="text-gray-600 mt-4 text-lg max-w-4xl leading-relaxed">{event.description}</p>}
             </div>
 
-            {/* Masonry photo grid — no individual titles/descriptions */}
-            <div className="columns-2 sm:columns-3 md:columns-4 gap-4">
-                {event.images?.map((img, idx) => (
-                    <motion.div key={idx}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.04 }}
-                        className="break-inside-avoid mb-4 cursor-pointer group rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow"
-                        onClick={() => setLightboxIndex(idx)}
-                    >
-                        <img src={img} alt="" loading="lazy"
-                            className="w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    </motion.div>
-                ))}
-            </div>
+            {/* Video embed section */}
+            {event.videoLink && (
+                <div className="mb-12 bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-gray-900 aspect-video max-w-5xl mx-auto relative group">
+                    <iframe 
+                        src={event.videoLink} 
+                        title={event.title} 
+                        className="w-full h-full absolute inset-0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowFullScreen
+                    />
+                </div>
+            )}
+
+            {/* Masonry photo grid */}
+            {event.images && event.images.length > 0 && (
+                <div>
+                    <h3 className="text-2xl font-black text-gray-800 mb-6 flex items-center gap-2 border-b pb-3">
+                        <ImageIcon className="text-pink-600" /> Event Gallery ({event.images.length} Photos)
+                    </h3>
+                    <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6">
+                        {event.images.map((img, idx) => (
+                            <motion.div key={idx}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.04 }}
+                                className="break-inside-avoid mb-6 cursor-pointer group rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 relative border border-gray-100"
+                                onClick={() => setLightboxIndex(idx)}
+                            >
+                                <img src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL.replace('/api', '')}/${img}`} alt="" loading="lazy"
+                                    className="w-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                                    <span className="text-white text-sm font-bold flex items-center gap-1.5 shadow">
+                                        <Eye size={16} /> View Fullscreen
+                                    </span>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {lightboxIndex !== null && (
                 <Lightbox images={event.images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
@@ -106,54 +137,62 @@ const EventPhotos = ({ event, onBack }) => {
 // ── Main Public Gallery Page ──────────────────────────────────────────────────
 const GalleryPage = () => {
     const [galleries, setGalleries] = useState([]);
+    const [categoryList, setCategoryList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('All');
     const [selectedEvent, setSelectedEvent] = useState(null);
 
     useEffect(() => {
-        galleryService.getPublicGalleries()
-            .then(data => setGalleries(data))
+        setLoading(true);
+        Promise.all([
+            galleryService.getPublicGalleries(),
+            galleryService.getPublicCategories()
+        ])
+            .then(([galData, catData]) => {
+                setGalleries(galData);
+                setCategoryList(catData);
+            })
             .catch(e => console.error('Gallery error', e))
             .finally(() => setLoading(false));
     }, []);
 
-    const categories = ['All', ...new Set(galleries.map(g => g.category))];
+    const categories = ['All', ...categoryList];
     const filtered = activeCategory === 'All' ? galleries : galleries.filter(g => g.category === activeCategory);
 
-    // Show event photo grid
+    // Detail view
     if (selectedEvent) {
         return (
-            <div className="bg-gray-50 min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+            <div className="bg-slate-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto">
-                    <EventPhotos event={selectedEvent} onBack={() => setSelectedEvent(null)} />
+                    <EventDetailView event={selectedEvent} onBack={() => setSelectedEvent(null)} />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="bg-gray-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+        <div className="bg-slate-50 min-h-screen py-14 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
 
                 {/* Page Header */}
-                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
-                    <h1 className="text-4xl md:text-5xl font-extrabold text-blue-900 mb-3 flex items-center justify-center gap-3">
-                        <Layers className="text-pink-600" size={40} /> Our Gallery
+                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+                    <h1 className="text-5xl md:text-6xl font-black text-slate-900 mb-4 flex items-center justify-center gap-3.5 tracking-tight">
+                        <Layers className="text-pink-600 animate-bounce" size={48} /> Campus Highlights & Memories
                     </h1>
-                    <p className="text-gray-500 text-lg max-w-xl mx-auto">
-                        Explore our events, celebrations, and precious memories.
+                    <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto font-medium">
+                        Explore our vibrant celebrations, academic achievements, video recaps, and special event albums.
                     </p>
                 </motion.div>
 
                 {/* Category Filter Tabs */}
                 {!loading && categories.length > 1 && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap justify-center gap-2 mb-10">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap justify-center gap-2.5 mb-12">
                         {categories.map((cat, i) => (
                             <button key={i} onClick={() => setActiveCategory(cat)}
-                                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-300 shadow-sm ${
+                                className={`px-6 py-2.5 rounded-full text-sm font-extrabold transition-all duration-300 shadow-sm ${
                                     activeCategory === cat
-                                        ? 'bg-pink-600 text-white scale-105 shadow-md'
-                                        : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-pink-600 border'
+                                        ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white scale-105 shadow-lg ring-4 ring-pink-500/20'
+                                        : 'bg-white text-gray-700 hover:bg-gray-100 hover:text-pink-600 border border-gray-200 shadow-sm'
                                 }`}>
                                 {cat}
                             </button>
@@ -161,20 +200,21 @@ const GalleryPage = () => {
                     </motion.div>
                 )}
 
-                {/* Content */}
+                {/* Content Grid */}
                 {loading ? (
-                    <div className="flex justify-center py-20">
-                        <div className="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-pink-600" />
+                    <div className="flex justify-center py-24">
+                        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-pink-600" />
                     </div>
                 ) : filtered.length === 0 ? (
-                    <div className="text-center py-20 bg-white rounded-2xl shadow-sm border">
-                        <ImageIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
-                        <h3 className="text-xl font-bold text-gray-700">No events in this category yet!</h3>
-                        <p className="text-gray-500 mt-1">Check back soon.</p>
+                    <div className="text-center py-24 bg-white rounded-3xl shadow-sm border border-gray-100 max-w-xl mx-auto p-8">
+                        <div className="bg-pink-50 p-6 rounded-full w-fit mx-auto mb-4">
+                            <ImageIcon className="h-14 w-14 text-pink-400" />
+                        </div>
+                        <h3 className="text-2xl font-black text-gray-800 mb-2">No events found in this category</h3>
+                        <p className="text-gray-500 text-base">We're updating our gallery soon with exciting new memories!</p>
                     </div>
                 ) : (
-                    // Event album cards — click to see grouped photos
-                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
                         <AnimatePresence>
                             {filtered.map((event, idx) => (
                                 <motion.div key={event._id} layout
@@ -182,39 +222,64 @@ const GalleryPage = () => {
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.9 }}
                                     transition={{ delay: idx * 0.04 }}
-                                    className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer"
+                                    className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 cursor-pointer border border-gray-100 flex flex-col justify-between hover:-translate-y-1.5"
                                     onClick={() => setSelectedEvent(event)}
                                 >
-                                    {/* Cover photo — first image of the album */}
-                                    <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
-                                        {event.images?.[0] ? (
-                                            <img src={event.images[0]} alt={event.title} loading="lazy"
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <ImageIcon size={40} className="text-gray-300" />
-                                            </div>
-                                        )}
-                                        {/* Photo count badge */}
-                                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
-                                            <ImageIcon size={10} /> {event.images?.length || 0}
-                                        </div>
-                                        <div className="absolute inset-0 bg-pink-600/0 group-hover:bg-pink-600/15 transition-colors duration-300" />
-                                    </div>
+                                    <div>
+                                        {/* Cover photo / Video Placeholder */}
+                                        <div className="aspect-[4/3] bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">
+                                            {event.images?.[0] ? (
+                                                <img src={event.images[0].startsWith('http') ? event.images[0] : `${import.meta.env.VITE_API_URL.replace('/api', '')}/${event.images[0]}`} alt={event.title} loading="lazy"
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                            ) : event.videoLink ? (
+                                                <div className="w-full h-full bg-gradient-to-tr from-purple-900 to-indigo-900 text-white flex flex-col items-center justify-center p-6 text-center group-hover:scale-105 transition-transform duration-500">
+                                                    <div className="bg-white/20 p-4 rounded-full backdrop-blur mb-3 shadow-lg group-hover:bg-pink-600 transition-colors duration-300">
+                                                        <Play size={36} className="text-white fill-white ml-0.5" />
+                                                    </div>
+                                                    <span className="text-xs font-extrabold uppercase tracking-widest text-purple-200">Video Recap</span>
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <ImageIcon size={48} className="text-gray-300" />
+                                                </div>
+                                            )}
 
-                                    {/* Album info — one title + one description for the whole group */}
-                                    <div className="p-4">
-                                        <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-pink-50 text-pink-600 border border-pink-200 rounded px-1.5 py-0.5 mb-1.5">
-                                            {event.category}
-                                        </span>
-                                        <h3 className="font-extrabold text-gray-800 text-sm leading-tight line-clamp-1 group-hover:text-pink-600 transition-colors">
-                                            {event.title}
-                                        </h3>
-                                        {event.description && (
-                                            <p className="text-gray-500 text-xs mt-1 line-clamp-2">{event.description}</p>
-                                        )}
-                                        <div className="mt-3 flex items-center text-xs text-pink-600 font-semibold">
-                                            View Photos <ChevronRight size={13} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                                            {/* Badges */}
+                                            <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                                                {event.videoLink && (
+                                                    <span className="bg-purple-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
+                                                        <Video size={12} /> Video
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="absolute bottom-3 right-3 bg-black/70 text-white text-[11px] font-black px-3 py-1 rounded-full backdrop-blur-md shadow-lg flex items-center gap-1.5">
+                                                <ImageIcon size={12} /> {event.images?.length || 0} Photos
+                                            </div>
+
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
+                                                <span className="text-white font-extrabold text-sm flex items-center gap-2">
+                                                    {event.videoLink ? 'Watch & Explore' : 'Open Album'} <ChevronRight size={16} className="text-pink-400" />
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="p-6">
+                                            <span className="inline-block text-[11px] font-black uppercase tracking-wider bg-pink-50 text-pink-600 border border-pink-100 rounded-lg px-2.5 py-1 mb-2.5">
+                                                {event.category}
+                                            </span>
+                                            <h3 className="font-black text-gray-900 text-lg leading-snug line-clamp-1 group-hover:text-pink-600 transition-colors">
+                                                {event.title}
+                                            </h3>
+                                            {event.description && (
+                                                <p className="text-gray-500 text-sm mt-1.5 line-clamp-2 leading-relaxed font-normal">{event.description}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="px-6 pb-6 pt-0">
+                                        <div className="w-full text-center text-xs font-bold text-pink-600 bg-pink-50/50 group-hover:bg-pink-600 group-hover:text-white border border-pink-100 rounded-xl py-2.5 transition-all duration-300 flex items-center justify-center gap-1.5 shadow-sm">
+                                            {event.videoLink ? <><Play size={14} className="fill-current" /> Watch Video</> : <><Eye size={14} /> View Album</>}
                                         </div>
                                     </div>
                                 </motion.div>

@@ -7,8 +7,34 @@ const getGalleries = async () => {
     return res.data;
 };
 
-const getPublicGalleries = async () => {
-    const res = await axios.get(`${API_URL}/public`);
+const getPublicGalleries = async (category = 'All') => {
+    const url = category === 'All' ? `${API_URL}/public` : `${API_URL}/public?category=${encodeURIComponent(category)}`;
+    const res = await axios.get(url);
+    return res.data;
+};
+
+const getPublicCategories = async () => {
+    const res = await axios.get(`${API_URL}/public/categories`);
+    return res.data;
+};
+
+const getCategories = async () => {
+    const res = await axios.get(`${API_URL}/categories`, { withCredentials: true });
+    return res.data;
+};
+
+const createCategory = async (data) => {
+    const res = await axios.post(`${API_URL}/categories`, data, { withCredentials: true });
+    return res.data;
+};
+
+const updateCategory = async (id, data) => {
+    const res = await axios.put(`${API_URL}/categories/${id}`, data, { withCredentials: true });
+    return res.data;
+};
+
+const deleteCategory = async (id) => {
+    const res = await axios.delete(`${API_URL}/categories/${id}`, { withCredentials: true });
     return res.data;
 };
 
@@ -52,8 +78,9 @@ const deleteGallery = async (id) => {
 };
 
 const galleryService = {
-    getGalleries, getPublicGalleries, getGalleryById,
-    createGallery, addImages, updateGallery,
+    getGalleries, getPublicGalleries, getPublicCategories,
+    getCategories, createCategory, updateCategory, deleteCategory,
+    getGalleryById, createGallery, addImages, updateGallery,
     deleteImage, deleteGallery
 };
 
