@@ -49,6 +49,7 @@ const AddEditExamResult = () => {
       studentId: '',
       somNumber: '',
       csrNumber: '',
+      certificateNumber: '',
       grade: '',
       isActive: true,
       subjectMarks: []
@@ -84,6 +85,7 @@ const AddEditExamResult = () => {
           setValue('examId', result.exam?._id || result.exam);
           setValue('somNumber', result.somNumber || '');
           setValue('csrNumber', result.csrNumber || '');
+          setValue('certificateNumber', result.certificateNumber || '');
           setValue('grade', result.grade || '');
           setValue('isActive', result.isActive !== undefined ? result.isActive : true);
 
@@ -115,13 +117,17 @@ const AddEditExamResult = () => {
     }
   }, [dispatch, id, isEditMode, setValue, navigate]);
 
-  // Mirror CSR number to SOM number with proper prefix conversion
+  // Mirror CSR number and Certificate number to SOM number with proper prefix conversion
   useEffect(() => {
     if (somNumberValue) {
       const convertedCsr = somNumberValue.startsWith('SOM-') 
         ? somNumberValue.replace('SOM-', 'CSR-') 
         : `CSR-${somNumberValue}`;
       setValue('csrNumber', convertedCsr);
+
+      if (somNumberValue.startsWith('SOM-G')) {
+        setValue('certificateNumber', somNumberValue.replace('SOM-G', ''));
+      }
     }
   }, [somNumberValue, setValue]);
 
@@ -485,7 +491,7 @@ const AddEditExamResult = () => {
           )}
 
           {/* Additional details */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
               <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">SOM Number</label>
                   <input {...register('somNumber')} className="border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-3 rounded-xl w-full bg-white font-semibold text-slate-800 outline-none transition-all" placeholder="Auto-generates if empty" />
@@ -493,6 +499,10 @@ const AddEditExamResult = () => {
               <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">CSR Number</label>
                   <input {...register('csrNumber')} className="border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-3 rounded-xl w-full bg-white font-semibold text-slate-800 outline-none transition-all" placeholder="Auto-generates if empty" />
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Certificate Number</label>
+                  <input {...register('certificateNumber')} className="border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 p-3 rounded-xl w-full bg-white font-semibold text-slate-800 outline-none transition-all" placeholder="Unique (e.g. 0001)" />
               </div>
               <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Grade</label>

@@ -21,6 +21,7 @@ const examResultSchema = new mongoose.Schema({
     // Result Specifics
     somNumber: { type: String, unique: true },
     csrNumber: { type: String, unique: true },
+    certificateNumber: { type: String, unique: true },
     subjectMarks: [{
         subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
         theory: { type: Number, default: 0 },

@@ -11,6 +11,7 @@ import dac from '../../../assets/dac.png';
 import foundation from '../../../assets/fOUNDATION.png';
 import logo2 from '../../../assets/logo2.png';
 import markshettkl from '../../../assets/marksheetrhen.png';
+import certificateImg from '../../../assets/certificate.png';
 
 const ExamResultPrint = () => {
     const { id } = useParams();
@@ -73,6 +74,36 @@ const ExamResultPrint = () => {
         };
 
         return convertLessThanOneThousand(num);
+    };
+
+    const yearToWords = (year) => {
+        if (!year || isNaN(year)) return '';
+        if (year === 2018) return "Two Thousand Eighteen";
+        if (year === 2019) return "Two Thousand Nineteen";
+        if (year === 2026) return "Two Thousand Twenty Six";
+        
+        if (year >= 2000 && year < 2100) {
+            const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+            const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+            const remainder = year % 100;
+            if (remainder === 0) return "Two Thousand";
+            if (remainder < 20) return "Two Thousand " + ones[remainder];
+            const tempTens = tens[Math.floor(remainder / 10)];
+            const tempOnes = ones[remainder % 10];
+            const separator = (tempTens && tempOnes) ? " " : "";
+            return "Two Thousand " + tempTens + separator + tempOnes;
+        }
+        return fullNumberToWords(year);
+    };
+
+    const formatGrade = (grade) => {
+        if (!grade) return 'First Class';
+        const g = grade.toUpperCase();
+        if (g === 'DISTINCTION') return 'First Class';
+        if (g === 'FIRST') return 'First Class';
+        if (g === 'SECOND') return 'Second Class';
+        if (g === 'THIRD') return 'Third Class';
+        return grade;
     };
 
     const getDaySuffix = (day) => {
@@ -338,96 +369,194 @@ const ExamResultPrint = () => {
                         </div>
                     </>
                 ) : (
-                    /* ============================================================= */
-                    /* ======================= CERTIFICATE VIEW ===================== */
-                    /* ============================================================= */
-                    <div className="relative z-10 h-full w-full px-[18mm] py-[20mm] flex flex-col justify-between box-border">
-                        {/* 1. Yellow/Gold Background Frame */}
-                        <img src={frame} alt="Gold Frame" className="absolute inset-0 w-full h-full object-fill z-0 pointer-events-none" />
+                    <>
+                        {/* Background pre-printed template image */}
+                        <img src={certificateImg} alt="Certificate Template Background" className="bg-img" />
 
-                        {/* 2. Watermark Background Logo */}
-                        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none z-0">
-                            <img src={logo2} alt="Watermark" className="w-[480px] h-[480px] object-contain rotate-[-12deg]" />
+                        {/* Photo Box positioned absolutely on top-right */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '40.5mm',
+                            right: '18.5mm',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            zIndex: 20
+                        }}>
+                            <div style={{
+                                width: '27.5mm',
+                                height: '33.5mm',
+                                border: '2px solid #8e6c1a', // Gold border matching template
+                                padding: '0.8mm',
+                                backgroundColor: '#fff',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}>
+                                {student?.studentPhoto ? (
+                                    <img
+                                        src={student.studentPhoto.startsWith('http') ? student.studentPhoto : `${import.meta.env.VITE_IMAGE_URL}/${student.studentPhoto}`}
+                                        alt="Student"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                ) : (
+                                    <div style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        backgroundColor: '#f3f4f6',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '8px',
+                                        color: '#9ca3af',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        PHOTO
+                                    </div>
+                                )}
+                            </div>
+                            <p style={{
+                                marginTop: '1.5mm',
+                                fontWeight: '900',
+                                fontSize: '3.4mm',
+                                fontFamily: 'Arial, sans-serif',
+                                color: '#000',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.2px'
+                            }}>
+                                Reg. No. {student?.regNo || '0398/SUR'}
+                            </p>
                         </div>
 
-                        <div className="relative z-10 w-full flex flex-col justify-between h-full">
-                            <div className="pt-2 px-2 flex flex-col items-center w-full">
-                                <div className="w-full flex justify-between items-start mb-2">
-                                    <div className="flex-grow"></div>
-                                    <div className="flex flex-col items-end">
-                                        <div className="w-28 h-32 border-2 border-[#D4AF37] p-1 mb-1 bg-white shadow-sm">
-                                            {student?.studentPhoto ? (
-                                                <img src={student.studentPhoto.startsWith('http') ? student.studentPhoto : `${import.meta.env.VITE_IMAGE_URL}/${student.studentPhoto}`} alt="Student" className="w-full h-full object-cover" />
-                                            ) : <div className="w-full h-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-bold">PHOTO</div>}
-                                        </div>
-                                        <p className="font-bold text-[11px] font-sans uppercase">Reg. No. {student?.regNo}</p>
-                                    </div>
-                                </div>
+                        {/* Content Container Flow positioned inside the certificate background */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '100mm',
+                            left: '17.5mm',
+                            width: '175mm',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            zIndex: 10,
+                            boxSizing: 'border-box',
+                            textAlign: 'center',
+                            color: '#000'
+                        }}>
+                            {/* This credential is awarded to */}
+                            <p className="cert-cursive" style={{
+                                fontSize: '6.5mm',
+                                margin: '4mm 0 2mm 0',
+                                color: '#222'
+                            }}>
+                                This credential is awarded to
+                            </p>
 
-                                <h1 className="text-6xl font-serif text-[#1A237E] mb-6 tracking-wide" style={{ fontFamily: "'Times New Roman', serif" }}>Certificate</h1>
+                            {/* Student Name */}
+                            <p className="cert-name" style={{
+                                fontWeight: '700',
+                                fontSize: '8.4mm',
+                                margin: '0 0 2mm 0',
+                                color: '#111',
+                                letterSpacing: '0.3px'
+                            }}>
+                                {studentPrefix} {student?.firstName} {student?.middleName} {student?.lastName}
+                            </p>
 
-                                <div className="text-center space-y-3 font-serif italic text-lg text-gray-800 leading-relaxed w-full">
-                                    <p className="text-xl not-italic font-bold text-gray-500 mb-4">This credential is awarded to</p>
+                            {/* D/o or S/o parent text */}
+                            <p className="cert-serif-text" style={{
+                                fontSize: '5.0mm',
+                                lineHeight: '1.5',
+                                margin: '0 0 3mm 0',
+                                color: '#111'
+                            }}>
+                                {student?.gender?.toLowerCase() === 'female' ? 'D/o' : 'S/o'} Shri {student?.fatherName || student?.middleName} On the {issueDate.isValid() ? issueDate.date() : '15'} day of the month {issueDate.isValid() ? issueDate.format('MMMM') : 'November'} <br />
+                                In the year {issueDate.isValid() ? yearToWords(issueDate.year()) : 'Two Thousand Eighteen'} for successfully completed a <br />
+                                <span style={{ fontWeight: 'bold' }}>{course?.duration || '12'} Months</span> course in
+                            </p>
 
-                                    <p className="text-3xl not-italic font-black text-slate-900 mb-4 tracking-wide" style={{ fontFamily: "'Times New Roman', serif" }}>
-                                        {student?.firstName} {student?.middleName} {student?.lastName}
-                                    </p>
+                            {/* Course name */}
+                            <p className="cert-course-title" style={{
+                                fontWeight: 'bold',
+                                fontSize: '5.8mm',
+                                textDecoration: 'underline',
+                                textTransform: 'uppercase',
+                                margin: '0 0 2.5mm 0',
+                                color: '#000',
+                                letterSpacing: '0.4px',
+                                display: 'inline-block'
+                            }}>
+                                {course?.name} ({course?.shortName || 'N/A'})
+                            </p>
 
-                                    <p className="px-8 leading-loose text-slate-800">
-                                        D/o Shri {student?.fatherName || student?.middleName} On the {issueDate.date()}{getDaySuffix(issueDate.date())} day of the month {issueDate.format('MMMM')} <br />
-                                        In the year {fullNumberToWords(issueDate.year())} for successfully completed a <br />
-                                        {course?.duration || '12'} Months course in
-                                    </p>
+                            {/* Grade and Center */}
+                            <p className="cert-serif-text" style={{
+                                fontSize: '5.0mm',
+                                margin: '0 0 4.5mm 0',
+                                color: '#111'
+                            }}>
+                                With <span style={{ fontWeight: 'bold' }}>{formatGrade(result.grade)}</span> from our {course?.centerName || 'Godadara Surat Center'}
+                            </p>
 
-                                    <p className="text-2xl not-italic font-black text-black underline decoration-double decoration-gray-400 underline-offset-8 uppercase tracking-wide mt-2">
-                                        {course?.name} ({course?.shortName || 'N/A'})
-                                    </p>
+                            {/* Course description given bellows these ares- */}
+                            <p className="cert-cursive" style={{
+                                fontSize: '5.4mm',
+                                margin: '0 0 3.5mm 0',
+                                color: '#222'
+                            }}>
+                                Course description given bellows these ares-
+                            </p>
 
-                                    <p className="mt-4">
-                                        With {result.grade || 'DISTINCTION'} from our Godadara Surat Center
-                                    </p>
-                                </div>
-
-                                {/* Subjects List */}
-                                <div className="grid grid-cols-2 gap-x-12 gap-y-1.5 mt-8 text-[14px] font-serif italic text-gray-700 w-full max-w-xl px-4">
-                                    {subjects.length > 0 ? subjects.map((subj, i) => (
-                                        <div key={i} className="tracking-wide">{i + 1}- {subj.subject?.name || 'Subject ' + (i + 1)}</div>
-                                    )) : (
-                                        <>
-                                            <div>1- Basic</div>
-                                            <div>2- Desktop Publishing</div>
-                                            <div>3- Financial Accounting</div>
-                                            <div>4- Programming in C, C++</div>
-                                            <div>5- Internet & Seminar</div>
-                                        </>
-                                    )}
-                                </div>
-
-                                <div className="w-full mt-10 pl-6 space-y-1 font-bold text-[12.5px] font-sans text-slate-800">
-                                    <p>Certificate No.: {result.certificateNumber || result._id?.slice(-4).toUpperCase()}</p>
-                                    <p>Date of issue : {issueDate.format('DD MMMM YYYY')}</p>
-                                </div>
-                            </div>
-
-                            {/* Signatures & Accreditation Logos block for Certificate */}
-                            <div className="flex justify-between items-end px-2 mt-8 font-sans w-full">
-                                <div className="flex flex-col items-center gap-1.5">
-                                    <div className="flex gap-3 items-center mb-1 bg-white p-0.5 rounded-sm">
-                                        <img src={foundation} alt="Foundation Logo" className="h-9 w-auto object-contain" />
-                                        <img src={aisdc} alt="AISDC Logo" className="h-9 w-auto object-contain" />
-                                        <img src={dac} alt="DAC Logo" className="h-9 w-auto object-contain" />
-                                    </div>
-                                    <div className="text-center w-40 border-t border-black pt-1 text-[9.5px] font-black text-slate-900 uppercase tracking-wide">
-                                        Centre Seal & Signature
-                                    </div>
-                                </div>
-
-                                <div className="text-center w-40 border-t border-black pt-1 text-[9.5px] font-black text-slate-900 uppercase tracking-wide">
-                                    Managing Director
-                                </div>
+                            {/* Two Column Subject List */}
+                            <div className="cert-subjects-grid" style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '2.0mm 8mm',
+                                width: '100%',
+                                maxWidth: '145mm',
+                                textAlign: 'left',
+                                paddingLeft: '12mm',
+                                fontSize: '4.4mm',
+                                color: '#222'
+                            }}>
+                                {subjects.length > 0 ? (
+                                    subjects.map((subj, i) => {
+                                        const subjectName = subj.subject?.name || subj.subjectName || subj.name || '';
+                                        const details = getSubjectDetails(subjectName, i);
+                                        return (
+                                            <div key={i} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {i + 1}- {details.name}
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <>
+                                        <div>1- Basic</div>
+                                        <div>2- Desktop Publishing &amp; (Modeling)</div>
+                                        <div>3- Financial Accounting</div>
+                                        <div>4- Programming in C, C++</div>
+                                        <div>5- Internet &amp; Seminar</div>
+                                    </>
+                                )}
                             </div>
                         </div>
-                    </div>
+
+                        {/* Absolute positioned Certificate Details block on bottom left */}
+                        <div style={{
+                            position: 'absolute',
+                            bottom: '66mm',
+                            left: '22mm',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1.2mm',
+                            zIndex: 20,
+                            fontFamily: 'Arial, sans-serif',
+                            fontWeight: 'bold',
+                            fontSize: '3.4mm',
+                            color: '#000',
+                            textAlign: 'left'
+                        }}>
+                            <p>Certificate No.: {result.certificateNumber || result._id?.slice(-4).toUpperCase() || '0001'}</p>
+                            <p>Date of issue : {issueDate.isValid() ? issueDate.format('DD MMMM YYYY') : '15 May 2019'}</p>
+                        </div>
+                    </>
                 )}
 
             </div>
@@ -435,6 +564,33 @@ const ExamResultPrint = () => {
             {/* Custom Print Style overrides to strip page margins & load Montserrat/Playfair fonts */}
             <style type="text/css">
                 {`
+                    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Great+Vibes&display=swap');
+
+                    .cert-cursive {
+                        font-family: 'Great Vibes', cursive, 'Playfair Display', Georgia, serif;
+                        font-weight: normal;
+                        color: #111;
+                    }
+
+                    .cert-name {
+                        font-family: 'Playfair Display', 'Times New Roman', Georgia, serif;
+                        font-style: italic;
+                    }
+
+                    .cert-serif-text {
+                        font-family: 'Playfair Display', 'Times New Roman', Georgia, serif;
+                        font-style: italic;
+                    }
+
+                    .cert-course-title {
+                        font-family: 'Playfair Display', 'Times New Roman', Georgia, serif;
+                    }
+
+                    .cert-subjects-grid {
+                        font-family: 'Playfair Display', 'Times New Roman', Georgia, serif;
+                        font-style: italic;
+                    }
+
                     .sheet {
                         width: 210mm;
                         height: 297mm;

@@ -46,7 +46,7 @@ const getExamResults = asyncHandler(async (req, res) => {
 // @desc    Create Exam Result
 // @route   POST /api/master/exam-result
 const createExamResult = asyncHandler(async (req, res) => {
-    const { studentId, examId, somNumber, csrNumber, subjectMarks, grade, isActive } = req.body;
+    const { studentId, examId, somNumber, csrNumber, certificateNumber, subjectMarks, grade, isActive } = req.body;
 
     const student = await Student.findById(studentId);
     if (!student) {
@@ -74,6 +74,17 @@ const createExamResult = asyncHandler(async (req, res) => {
         }
     }
 
+    let finalCert = certificateNumber;
+    if (!finalCert) {
+        if (finalSom.startsWith('SOM-G')) {
+            finalCert = finalSom.replace('SOM-G', '');
+        } else {
+            const counter = await Counter.findOne({ _id: 'examResultSeq' });
+            const seqNum = counter ? counter.seq : 1;
+            finalCert = seqNum.toString().padStart(4, '0');
+        }
+    }
+
     // Calculate totals from subjects
     const marksObtained = subjectMarks.reduce((sum, s) => sum + Number(s.total || 0), 0);
     const totalMarks = subjectMarks.reduce((sum, s) => sum + Number(s.maxMarks || 100), 0);
@@ -85,6 +96,7 @@ const createExamResult = asyncHandler(async (req, res) => {
         batch: student.batch,
         somNumber: finalSom,
         csrNumber: finalCsr,
+        certificateNumber: finalCert,
         subjectMarks: subjectMarks.map(s => ({
             subject: s.subjectId,
             theory: s.theory,
@@ -113,6 +125,7 @@ const updateExamResult = asyncHandler(async (req, res) => {
     if (result) {
         let finalSom = req.body.somNumber || result.somNumber;
         let finalCsr = req.body.csrNumber || result.csrNumber;
+        let finalCert = req.body.certificateNumber || result.certificateNumber;
 
         // Auto-correct to CSR- prefix if empty or starting with SOM-
         if (!finalCsr || finalCsr.startsWith('SOM-')) {
@@ -123,8 +136,19 @@ const updateExamResult = asyncHandler(async (req, res) => {
             }
         }
 
+        if (!finalCert) {
+            if (finalSom.startsWith('SOM-G')) {
+                finalCert = finalSom.replace('SOM-G', '');
+            } else {
+                const counter = await Counter.findOne({ _id: 'examResultSeq' });
+                const seqNum = counter ? counter.seq : 1;
+                finalCert = seqNum.toString().padStart(4, '0');
+            }
+        }
+
         result.somNumber = finalSom;
         result.csrNumber = finalCsr;
+        result.certificateNumber = finalCert;
         result.grade = req.body.grade || result.grade;
         result.isActive = req.body.isActive !== undefined ? req.body.isActive : result.isActive;
 
