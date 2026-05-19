@@ -1,15 +1,22 @@
 const asyncHandler = require('express-async-handler');
 const ExamResult = require('../models/ExamResult');
 const Student = require('../models/Student');
+const Counter = require('../models/Counter');
+const ExamSchedule = require('../models/ExamSchedule');
 
 // @desc    Get Exam Results with Filters
 // @route   GET /api/master/exam-result
 const getExamResults = asyncHandler(async (req, res) => {
-    const { examId, batch, regNo, studentName } = req.query;
+    const { examId, batch, regNo, studentName, courseId, examName } = req.query;
 
     let query = { isDeleted: false };
 
     if (examId) query.exam = examId;
+    if (courseId) query.course = courseId;
+    if (examName) {
+        const schedules = await ExamSchedule.find({ examName: { $regex: examName, $options: 'i' } }).select('_id');
+        query.exam = { $in: schedules.map(s => s._id) };
+    }
     if (batch) query.batch = { $regex: batch, $options: 'i' };
     if (req.query.studentId) query.student = req.query.studentId;
     
@@ -28,7 +35,7 @@ const getExamResults = asyncHandler(async (req, res) => {
     }
 
     const results = await ExamResult.find(query)
-        .populate('student', 'firstName lastName regNo enrollmentNo mobileStudent')
+        .populate('student', 'firstName lastName regNo enrollmentNo mobileStudent studentPhoto')
         .populate('course', 'name')
         .populate('exam', 'examName')
         .sort({ createdAt: -1 });
@@ -46,18 +53,25 @@ const createExamResult = asyncHandler(async (req, res) => {
         res.status(404); throw new Error('Student not found');
     }
 
-    // Auto-generate SOM if not provided
+    // Auto-generate SOM and CSR if not provided
     let finalSom = somNumber;
+    let finalCsr = csrNumber;
+
     if (!finalSom) {
-        const count = await ExamResult.countDocuments();
-        finalSom = `SOM-G${(count + 1).toString().padStart(5, '0')}`;
+        const counter = await Counter.findOneAndUpdate(
+            { _id: 'examResultSeq' },
+            { $inc: { seq: 1 } },
+            { new: true, upsert: true }
+        );
+        finalSom = `SOM-G${counter.seq.toString().padStart(5, '0')}`;
     }
 
-    // Auto-generate CSR if not provided
-    let finalCsr = csrNumber;
-    if (!finalCsr) {
-        const count = await ExamResult.countDocuments();
-        finalCsr = `${(count + 1).toString().padStart(4, '0')}`;
+    if (!finalCsr || finalCsr.startsWith('SOM-')) {
+        if (finalSom.startsWith('SOM-')) {
+            finalCsr = finalSom.replace('SOM-', 'CSR-');
+        } else {
+            finalCsr = `CSR-${finalSom}`;
+        }
     }
 
     // Calculate totals from subjects
@@ -97,8 +111,20 @@ const createExamResult = asyncHandler(async (req, res) => {
 const updateExamResult = asyncHandler(async (req, res) => {
     const result = await ExamResult.findById(req.params.id);
     if (result) {
-        result.somNumber = req.body.somNumber || result.somNumber;
-        result.csrNumber = req.body.csrNumber || result.csrNumber;
+        let finalSom = req.body.somNumber || result.somNumber;
+        let finalCsr = req.body.csrNumber || result.csrNumber;
+
+        // Auto-correct to CSR- prefix if empty or starting with SOM-
+        if (!finalCsr || finalCsr.startsWith('SOM-')) {
+            if (finalSom.startsWith('SOM-')) {
+                finalCsr = finalSom.replace('SOM-', 'CSR-');
+            } else {
+                finalCsr = `CSR-${finalSom}`;
+            }
+        }
+
+        result.somNumber = finalSom;
+        result.csrNumber = finalCsr;
         result.grade = req.body.grade || result.grade;
         result.isActive = req.body.isActive !== undefined ? req.body.isActive : result.isActive;
 
@@ -165,10 +191,16 @@ const getExamResultById = asyncHandler(async (req, res) => {
 // @desc    Get Next Available SOM and CSR Numbers
 // @route   GET /api/master/exam-result/next-numbers
 const getNextResultNumbers = asyncHandler(async (req, res) => {
-    const count = await ExamResult.countDocuments();
+    let counter = await Counter.findById('examResultSeq');
+    if (!counter) {
+        const count = await ExamResult.countDocuments();
+        counter = await Counter.create({ _id: 'examResultSeq', seq: count });
+    }
+    const nextSeq = counter.seq + 1;
+    const nextSom = `SOM-G${nextSeq.toString().padStart(5, '0')}`;
     res.json({
-        somNumber: `SOM-G${(count + 1).toString().padStart(5, '0')}`,
-        csrNumber: `${(count + 1).toString().padStart(4, '0')}`
+        somNumber: nextSom,
+        csrNumber: nextSom.startsWith('SOM-') ? nextSom.replace('SOM-', 'CSR-') : `CSR-${nextSom}`
     });
 });
 

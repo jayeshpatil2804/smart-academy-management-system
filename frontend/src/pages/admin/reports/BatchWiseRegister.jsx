@@ -121,14 +121,6 @@ const BatchWiseRegister = () => {
         documentTitle: 'Batch_Wise_Register_Report',
     });
 
-    const getBatchTime = (batchName) => {
-        const batchObj = batches?.find(b => b.name === batchName);
-        if (batchObj) {
-            return `${batchObj.startTime} to ${batchObj.endTime}`;
-        }
-        return batchName;
-    };
-
     const getBranchInfo = () => {
         let branchId = user?.branchId;
 
@@ -163,6 +155,140 @@ const BatchWiseRegister = () => {
     };
 
     const headerBranch = getBranchInfo();
+
+    const parseStartHour = (startTimeStr) => {
+        if (!startTimeStr) return null;
+        const cleaned = startTimeStr.toUpperCase().trim();
+        const isPM = cleaned.includes('PM');
+        
+        let timeStr = cleaned;
+        const timeMatch = cleaned.match(/(\d{1,2}):(\d{2})/);
+        if (timeMatch) {
+            timeStr = timeMatch[0];
+        }
+        
+        const parts = timeStr.replace(/[A-Z]/g, '').trim().split(':');
+        let hour = parseInt(parts[0], 10);
+        if (isNaN(hour)) return null;
+        if (isPM && hour < 12) hour += 12;
+        if (!isPM && hour === 12) hour = 0;
+        return hour;
+    };
+
+    const standardSlots = [
+        { label: '1st', time: '8:00 to 09:00 am', startHour: 8, endHour: 9 },
+        { label: '2nd', time: '9:00 to 10:00 am', startHour: 9, endHour: 10 },
+        { label: '3rd', time: '10:00 to 11:00 am', startHour: 10, endHour: 11 },
+        { label: '4th', time: '11:00 to 12:00 pm', startHour: 11, endHour: 12 },
+        { label: '5th', time: '01:00 to 02:00 pm', startHour: 13, endHour: 14 },
+        { label: '6th', time: '02:00 to 03:00 pm', startHour: 14, endHour: 15 },
+        { label: '7th', time: '03:00 to 04:00 pm', startHour: 15, endHour: 16 },
+        { label: '8th', time: '04:00 to 05:00 pm', startHour: 16, endHour: 17 },
+    ];
+
+    const getSlotStudents = (slotIndex) => {
+        if (!students) return [];
+        return students.filter(student => {
+            if (!student.batch) return false;
+            const bName = student.batch.toLowerCase();
+            
+            const batchObj = batches?.find(b => b.name === student.batch);
+            const startHour = batchObj ? parseStartHour(batchObj.startTime) : parseStartHour(student.batch);
+            
+            if (startHour !== null) {
+                if (slotIndex === 0) return startHour === 8;
+                if (slotIndex === 1) return startHour === 9;
+                if (slotIndex === 2) return startHour === 10;
+                if (slotIndex === 3) return startHour === 11;
+                if (slotIndex === 4) return startHour === 12 || startHour === 13 || startHour === 1;
+                if (slotIndex === 5) return startHour === 14 || startHour === 2;
+                if (slotIndex === 6) return startHour === 15 || startHour === 3;
+                if (slotIndex === 7) return startHour === 16 || startHour === 4;
+            }
+            
+            if (slotIndex === 0) return bName.includes('8:00') || bName.includes('08:00');
+            if (slotIndex === 1) return bName.includes('9:00') || bName.includes('09:00');
+            if (slotIndex === 2) return bName.includes('10:00');
+            if (slotIndex === 3) return bName.includes('11:00');
+            if (slotIndex === 4) return bName.includes('12:00') || bName.includes('1:00') || bName.includes('01:00');
+            if (slotIndex === 5) return bName.includes('2:00') || bName.includes('02:00');
+            if (slotIndex === 6) return bName.includes('3:00') || bName.includes('03:00');
+            if (slotIndex === 7) return bName.includes('4:00') || bName.includes('04:00');
+            
+            return false;
+        });
+    };
+
+    const getHeaderDateString = () => {
+        const dateVal = filters.startDate || filters.endDate || new Date();
+        return moment(dateVal).format('MMMM - YYYY');
+    };
+
+    const totalCount = standardSlots.reduce((acc, _, idx) => acc + getSlotStudents(idx).length, 0);
+
+    const renderBatchTable = (slotIndex) => {
+        const slot = standardSlots[slotIndex];
+        const slotStudents = getSlotStudents(slotIndex);
+        
+        const rows = [];
+        for (let i = 0; i < 6; i++) {
+            rows.push(slotStudents[i] || null);
+        }
+        
+        return (
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.2px solid #000', fontSize: '7.5px', fontFamily: 'Arial, sans-serif', color: '#000', tableLayout: 'fixed' }}>
+                <thead>
+                    <tr style={{ backgroundColor: '#d2543e', color: '#fff', height: '6mm', borderBottom: '1.2px solid #000' }}>
+                        <th style={{ width: '8%', borderRight: '1px solid #000', fontWeight: 'bold', fontSize: '7.5px', textAlign: 'center', padding: 0 }}>{slot.label}</th>
+                        <th style={{ width: '12%', borderRight: '1px solid #000', fontWeight: 'bold', fontSize: '7.5px', textAlign: 'center', padding: 0 }}>Reg</th>
+                        <th style={{ width: '40%', borderRight: '1px solid #000', fontWeight: 'bold', fontSize: '7.5px', textAlign: 'center', padding: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.time}</th>
+                        <th style={{ width: '23%', borderRight: '1px solid #000', fontWeight: 'bold', fontSize: '7.5px', textAlign: 'center', padding: 0 }}>MOBILE</th>
+                        <th style={{ width: '17%', fontWeight: 'bold', fontSize: '7.5px', textAlign: 'center', padding: 0 }}>COURSES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows.map((student, idx) => {
+                        const parentMobile = student?.mobileParent || student?.contactParent || '-';
+                        const homeMobile = student?.contactHome || '-';
+                        const studentMobile = student?.mobileStudent || student?.contactStudent || '-';
+                        
+                        return (
+                            <tr key={idx} style={{ height: '8.8mm', borderBottom: idx < 5 ? '1px solid #000' : 'none' }}>
+                                <td style={{ borderRight: '1px solid #000', textAlign: 'center', fontWeight: 'bold', padding: 0 }}>{idx + 1}</td>
+                                <td style={{ borderRight: '1px solid #000', textAlign: 'center', fontWeight: 'bold', padding: 0 }}>
+                                    {student?.regNo || ''}
+                                </td>
+                                <td style={{ borderRight: '1px solid #000', paddingLeft: '4px', fontWeight: 'bold', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                                    {student ? `${student.firstName} ${student.lastName}`.substring(0, 18) : ''}
+                                </td>
+                                <td style={{ borderRight: '1px solid #000', padding: 0 }}>
+                                    <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', border: 'none', margin: 0, padding: 0 }}>
+                                        <tbody>
+                                            <tr style={{ height: '2.9mm' }}>
+                                                <td style={{ width: '20%', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 'bold', fontSize: '6px', padding: 0 }}>G</td>
+                                                <td style={{ borderBottom: '1px solid #000', paddingLeft: '2px', fontSize: '6.5px', fontWeight: '600', padding: 0, textAlign: 'left' }}>{parentMobile}</td>
+                                            </tr>
+                                            <tr style={{ height: '2.9mm' }}>
+                                                <td style={{ width: '20%', borderRight: '1px solid #000', borderBottom: '1px solid #000', textAlign: 'center', fontWeight: 'bold', fontSize: '6px', padding: 0 }}>H</td>
+                                                <td style={{ borderBottom: '1px solid #000', paddingLeft: '2px', fontSize: '6.5px', fontWeight: '600', padding: 0, textAlign: 'left' }}>{homeMobile}</td>
+                                            </tr>
+                                            <tr style={{ height: '2.9mm' }}>
+                                                <td style={{ width: '20%', borderRight: '1px solid #000', textAlign: 'center', fontWeight: 'bold', fontSize: '6px', padding: 0 }}>S</td>
+                                                <td style={{ paddingLeft: '2px', fontSize: '6.5px', fontWeight: '600', padding: 0, textAlign: 'left' }}>{studentMobile}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                                <td style={{ paddingLeft: '4px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '7px', textAlign: 'left' }}>
+                                    {student?.course?.shortName || student?.course?.name || ''}
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        );
+    };
 
     if (studentsLoading || batchesLoading) {
         return (
@@ -235,153 +361,135 @@ const BatchWiseRegister = () => {
                     <button onClick={handleSearch} className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-bold shadow transition flex items-center gap-2">
                         {studentsLoading ? 'Loading...' : <><Search size={18} /> Show Report</>}
                     </button>
+                    <button onClick={handlePrint} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded font-bold shadow transition flex items-center gap-2">
+                        <Printer size={18} /> Print Report
+                    </button>
                 </div>
             </div>
 
-            {/* {showReport && ( */}
-                <div ref={componentRef} className="print-container bg-white p-4 sm:p-8 rounded-lg shadow-sm border border-gray-100">
-                {/* Report Header */}
-                <div className="flex justify-between items-start border-b-2 border-primary pb-4 mb-8">
-                    <div className="flex items-center gap-4">
-                        <img src={logo} alt="Institute Logo" className="h-20 w-auto object-contain" />
-                    </div>
-                    <div className="text-right text-xs space-y-1">
-                        <h2 className="text-xl font-bold text-blue-600 mb-1">{headerBranch.name}</h2>
-                        <div className="text-gray-600 max-w-xs ml-auto font-medium">
-                            {headerBranch.address}
-                        </div>
-                        <p className="font-bold text-blue-800">
-                             Ph. No. : {headerBranch.phone}, Mob. No. : {headerBranch.mobile}
-                        </p>
-                        <p className="text-blue-500 underline font-medium">{headerBranch.email}</p>
-                        <div className="mt-2 inline-block bg-gray-100 px-3 py-1 rounded-md border border-gray-200">
-                            <span className="text-[10px] font-bold text-gray-500 uppercase block leading-tight">Report Date</span>
-                            <span className="text-xs font-black text-gray-800">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="text-center mb-10">
-                    <h3 className="text-2xl font-black text-gray-800 border-b-4 border-gray-800 inline-block px-8 pb-1">BATCH WISE REGISTER</h3>
-                </div>
-
-                {/* Data Grid */}
-                <div className="grid grid-cols-1 gap-10">
-                    {Object.keys(groupedData).map((batchName, bIdx) => (
-                        <div key={batchName} className="border-2 border-gray-800 rounded-sm overflow-hidden break-inside-avoid mb-6">
-                            <div className="bg-gray-800 text-white px-4 py-2 flex justify-between items-center font-black italic">
-                                <span>{bIdx + 1}st: {getBatchTime(batchName)}</span>
-                                <span className="bg-white text-gray-800 px-3 py-0.5 rounded text-xs">TOTAL: {groupedData[batchName].length}</span>
+            {showReport && (
+                <div className="preview-scroll-wrapper border border-slate-200 rounded-xl p-4 bg-slate-50 overflow-auto flex justify-center mb-8 print:border-0 print:p-0 print:bg-white print:overflow-visible">
+                    <div 
+                        ref={componentRef} 
+                        className="print-container bg-white"
+                        style={{ 
+                            width: '210mm', 
+                            height: '297mm', 
+                            padding: '4mm 6mm', 
+                            boxSizing: 'border-box', 
+                            position: 'relative', 
+                            backgroundColor: '#fff',
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'
+                        }}
+                    >
+                        {/* Top Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '2mm' }}>
+                            {/* Logo */}
+                            <div style={{ width: '22%' }}>
+                                <img src={logo} alt="Smart Institute Logo" style={{ height: '14mm', width: 'auto', objectFit: 'contain' }} />
                             </div>
+
+                            {/* Month and Year */}
+                            <div style={{ width: '40%', textAlign: 'center' }}>
+                                <div style={{ fontSize: '6mm', fontWeight: '900', color: '#1e3a8a', fontFamily: 'Arial, sans-serif' }}>
+                                    {getHeaderDateString()}
+                                </div>
+                            </div>
+
+                            {/* Branch Address & Contacts */}
+                            <div style={{ width: '38%', textAlign: 'right', fontFamily: 'Arial, sans-serif', color: '#000', fontSize: '7px', lineHeight: '1.2' }}>
+                                <div style={{ fontWeight: '900', fontSize: '9px', color: '#1e3a8a' }}>{headerBranch.name || 'Godadra Branch'}</div>
+                                <div>{headerBranch.address || 'H.O.: 1st & 2nd Floor, 30, kober Nagar,'}</div>
+                                <div>Opp. Haba baijnath Mandir, Aas-pass Circle, Godadra,</div>
+                                <div>Surat, Gujarat (INDIA)</div>
+                                <div style={{ fontWeight: 'bold' }}>
+                                    Ph. No.: {headerBranch.phone || '96017 49300'} Mob.: {headerBranch.mobile || '+91 98988 30409'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Green & Orange Banner */}
+                        <div style={{ display: 'flex', width: '100%', marginBottom: '3mm', height: '8mm', boxSizing: 'border-box' }}>
+                            <div style={{ 
+                                width: '85%', 
+                                backgroundColor: '#2b8258', 
+                                color: '#000', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                fontSize: '4.5mm', 
+                                fontWeight: '900', 
+                                fontFamily: 'Arial, sans-serif',
+                                letterSpacing: '1px',
+                                border: '1.5px solid #000',
+                                borderRight: 'none'
+                            }}>
+                                BATCH WISE REGISTER {moment(filters.startDate || filters.endDate || new Date()).format('YYYY')}
+                            </div>
+                            <div style={{ 
+                                width: '15%', 
+                                backgroundColor: '#ec9b1c', 
+                                color: '#000', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                fontSize: '5mm', 
+                                fontWeight: '900', 
+                                fontFamily: 'Arial, sans-serif',
+                                border: '1.5px solid #000'
+                            }}>
+                                {totalCount}
+                            </div>
+                        </div>
+
+                        {/* Double-Column Grid of Batch Tables */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3mm', width: '100%', boxSizing: 'border-box' }}>
                             
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-xs border-collapse">
-                                    <thead>
-                                        <tr className="bg-gray-100 border-b border-gray-800 text-gray-800 font-black uppercase">
-                                            <th className="p-2 border-r border-gray-300 w-10">Sr</th>
-                                            <th className="p-2 border-r border-gray-300 w-24">Reg</th>
-                                            <th className="p-2 border-r border-gray-300 text-left">Student Name</th>
-                                            <th className="p-2 border-r border-gray-300 w-32">Mobile Numbers</th>
-                                            <th className="p-2 text-left">Courses</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {groupedData[batchName].map((student, sIdx) => (
-                                            <tr key={student._id} className="border-b border-gray-200 last:border-0 hover:bg-gray-50">
-                                                <td className="p-2 border-r border-gray-300 text-center font-bold">{sIdx + 1}</td>
-                                                <td className="p-2 border-r border-gray-300 text-center font-mono font-bold text-blue-800">{student.regNo || '-'}</td>
-                                                <td className="p-2 border-r border-gray-300 font-bold text-gray-900 uppercase">
-                                                    {student.firstName} {student.middleName} {student.lastName}
-                                                </td>
-                                                <td className="p-2 border-r border-gray-300 whitespace-nowrap">
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black text-[10px]">G</span> <span className="font-semibold">{student.mobileParent || '-'}</span></div>
-                                                        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-black text-[10px]">H</span> <span className="font-semibold">{student.contactHome || '-'}</span></div>
-                                                        <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-black text-[10px]">S</span> <span className="font-semibold">{student.mobileStudent || '-'}</span></div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-2">
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {student.course?.name && (
-                                                            <span className="bg-gray-100 px-2 py-0.5 rounded text-[10px] font-black border border-gray-300">
-                                                                {student.course.name}
-                                                            </span>
-                                                        )}
-                                                        {student.batchStartDate && (
-                                                            <div className="text-[10px] text-gray-500 font-bold mt-1 w-full">
-                                                                D.O.J: {new Date(student.batchStartDate).toLocaleDateString('en-GB')}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            {/* Left Column (Slots 0, 2, 4, 6) */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3mm' }}>
+                                {renderBatchTable(0)}
+                                {renderBatchTable(2)}
+                                {renderBatchTable(4)}
+                                {renderBatchTable(6)}
+                            </div>
+
+                            {/* Right Column (Slots 1, 3, 5, 7) */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3mm' }}>
+                                {renderBatchTable(1)}
+                                {renderBatchTable(3)}
+                                {renderBatchTable(5)}
+                                {renderBatchTable(7)}
                             </div>
                         </div>
-                    ))}
-                </div>
-
-                {/* Summary Table */}
-                <div className="mt-12 break-inside-avoid">
-                    <h4 className="text-xl font-black text-gray-800 mb-4 border-l-4 border-primary pl-3">BATCH SUMMARY</h4>
-                    <div className="max-w-md">
-                        <table className="w-full border-2 border-gray-800 text-sm">
-                            <thead className="bg-gray-800 text-white">
-                                <tr>
-                                    <th className="p-3 text-left font-black uppercase">Batch Name</th>
-                                    <th className="p-3 text-center font-black uppercase w-32">Students</th>
-                                </tr>
-                            </thead>
-                            <tbody className="font-bold">
-                                {summaryData.map((sum, idx) => (
-                                    <tr key={idx} className="border-b border-gray-800 last:border-0 even:bg-gray-50">
-                                        <td className="p-3 text-gray-800">{sum.name}</td>
-                                        <td className="p-3 text-center text-primary text-lg">{sum.count}</td>
-                                    </tr>
-                                ))}
-                                <tr className="bg-gray-800 text-white font-black">
-                                    <td className="p-3 text-right uppercase tracking-wider">Grand Total</td>
-                                    <td className="p-3 text-center text-xl underline decoration-double decoration-primary underline-offset-4">
-                                        {summaryData.reduce((acc, curr) => acc + curr.count, 0)}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
-
-                {/* Footer Signature */}
-                <div className="mt-20 flex justify-between items-end border-t border-dashed border-gray-300 pt-10 no-print-flex">
-                    <div className="text-center">
-                        <div className="w-48 border-b-2 border-gray-800 mb-2"></div>
-                        <p className="text-xs font-black text-gray-800 uppercase tracking-widest">Authorized Signatory</p>
-                    </div>
-                    <div className="text-center text-[10px] text-gray-400 font-medium">
-                        Report generated by {user?.name} on {new Date().toLocaleString()}
-                    </div>
-                    <div className="text-center">
-                        <div className="w-48 border-b-2 border-gray-800 mb-2"></div>
-                        <p className="text-xs font-black text-gray-800 uppercase tracking-widest">Office Seal</p>
-                    </div>
-                </div>
-            </div>
-
+            )}
 
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
-                    .no-print { display: none !important; }
+                    .no-print, .print\\:hidden { display: none !important; }
+                    .preview-scroll-wrapper {
+                        padding: 0 !important;
+                        border: 0 !important;
+                        background: none !important;
+                        overflow: visible !important;
+                    }
                     .print-container { 
                         box-shadow: none !important; 
                         border: none !important; 
-                        padding: 0 !important;
+                        padding: 4mm 6mm !important;
                         margin: 0 !important;
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        page-break-after: avoid;
+                        page-break-before: avoid;
                     }
                     body { background: white !important; }
-                    @page { margin: 1cm; }
+                    @page { 
+                        size: A4 portrait;
+                        margin: 0; 
+                    }
                 }
-                .break-inside-avoid { break-inside: avoid; }
             `}} />
         </div>
     );

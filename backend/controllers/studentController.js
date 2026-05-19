@@ -19,10 +19,17 @@ const getStudents = asyncHandler(async (req, res) => {
         page = 1, pageSize = 10, courseFilter, studentName,
         hasPendingFees, reference, startDate, endDate,
         isRegistered, isAdmissionFeesPaid, batch, branchId,
-        sortBy = '-createdAt'
+        sortBy = '-createdAt', ids
     } = req.query;
     
     let query = { isDeleted: false };
+
+    if (ids !== undefined) {
+        if (!ids) {
+            return res.json({ students: [], page: Number(page) || 1, pages: 0, count: 0 });
+        }
+        query._id = { $in: ids.split(',') };
+    }
 
     // Branch-based filtering logic
     if (req.user.role !== 'Super Admin' && req.user.branchId) {
@@ -798,4 +805,78 @@ module.exports = {
     reactivateStudent,
     getExamPendingStudents,
     getUniqueReferences
+};
+
+const verifyAdmissionStatus = asyncHandler(async (req, res) => {
+    const { enrollmentNo, regNo, identifier, dob } = req.body;
+    const searchVal = identifier || enrollmentNo || regNo;
+
+    if (!searchVal || !dob) {
+        res.status(400);
+        throw new Error('Enrollment/Registration number and Date of Birth are required');
+    }
+
+    const student = await Student.findOne({
+        $or: [
+            { enrollmentNo: { $regex: new RegExp(`^${searchVal.trim()}$`, 'i') } },
+            { regNo: { $regex: new RegExp(`^${searchVal.trim()}$`, 'i') } }
+        ],
+        isDeleted: false
+    })
+        .populate('course', 'name')
+        .lean();
+
+    if (!student) {
+        res.status(404);
+        throw new Error('No student found with the provided Enrollment/Registration number');
+    }
+
+    const d1 = new Date(dob);
+    const d2 = new Date(student.dob);
+    
+    const isSameDate = (d1.getUTCDate() === d2.getUTCDate() && d1.getUTCMonth() === d2.getUTCMonth() && d1.getUTCFullYear() === d2.getUTCFullYear()) ||
+                       (d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear());
+
+    if (!isSameDate) {
+        res.status(400);
+        throw new Error('Invalid Date of Birth for the provided student');
+    }
+
+    res.json({
+        success: true,
+        student: {
+            firstName: student.firstName,
+            middleName: student.middleName,
+            lastName: student.lastName,
+            enrollmentNo: student.enrollmentNo,
+            regNo: student.regNo,
+            courseName: student.course?.name || 'N/A',
+            batch: student.batch,
+            branchName: student.branchName,
+            admissionDate: student.admissionDate,
+            isRegistered: student.isRegistered,
+            isActive: student.isActive,
+            isCancelled: student.isCancelled,
+            isAdmissionFeesPaid: student.isAdmissionFeesPaid,
+            pendingFees: student.pendingFees,
+            totalFees: student.totalFees
+        }
+    });
+});
+
+module.exports = { 
+    getStudents, 
+    getStudentById, 
+    createStudent, 
+    updateStudent, 
+    confirmStudentRegistration, 
+    deleteStudent, 
+    toggleStudentStatus, 
+    resetStudentLogin, 
+    getNextRegNo, 
+    cancelStudent,
+    reactivateStudent,
+    getExamPendingStudents,
+    getUniqueReferences,
+    verifyAdmissionStatus
 };

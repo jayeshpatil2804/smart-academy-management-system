@@ -195,6 +195,13 @@ export const fetchExamResults = createAsyncThunk('master/fetchExamResults', asyn
     } catch (error) { return thunkAPI.rejectWithValue(error.message); }
 });
 
+export const fetchExamResultById = createAsyncThunk('master/fetchExamResultById', async (id, thunkAPI) => {
+    try {
+        const response = await axios.get(`${API_URL}exam-result/${id}`);
+        return response.data;
+    } catch (error) { return thunkAPI.rejectWithValue(error.message); }
+});
+
 export const fetchPendingExams = createAsyncThunk('master/fetchPendingExams', async (params, thunkAPI) => {
     try {
         const response = await axios.get(API_URL + 'exam-pending', { params });
@@ -251,6 +258,21 @@ export const fetchEducations = createAsyncThunk('master/fetchEducations', async 
         const response = await axios.get(API_URL + 'education');
         return response.data;
     } catch (error) { return thunkAPI.rejectWithValue(error.message); }
+});
+
+// --- Exam Name Thunks ---
+export const fetchExams = createAsyncThunk('master/fetchExams', async (_, thunkAPI) => {
+    try {
+        const response = await axios.get(API_URL + 'exam-name');
+        return response.data;
+    } catch (error) { return thunkAPI.rejectWithValue(error.message); }
+});
+
+export const createExam = createAsyncThunk('master/createExam', async (data, thunkAPI) => {
+    try {
+        const response = await axios.post(API_URL + 'exam-name', data);
+        return response.data;
+    } catch (error) { return thunkAPI.rejectWithValue(error.response?.data?.message || error.message); }
 });
 
 // --- Branch Thunks ---
@@ -373,6 +395,7 @@ const masterSlice = createSlice({
         pendingExams: [],
         references: [],
         educations: [],
+        exams: [],
         branches: [],
         freeLearningQuestions: [],
         states: [],
@@ -578,6 +601,14 @@ const masterSlice = createSlice({
                 state.educations.push(action.payload); // push to sort alphabetically usually handled by backend but good here
                 state.isSuccess = true;
                 state.message = 'Education Added Successfully';
+            })
+
+            // --- Exams ---
+            .addCase(fetchExams.fulfilled, (state, action) => { state.exams = action.payload; })
+            .addCase(createExam.fulfilled, (state, action) => {
+                state.exams.push(action.payload);
+                state.isSuccess = true;
+                state.message = 'Exam Name Added Successfully';
             })
             
             // --- Branches ---

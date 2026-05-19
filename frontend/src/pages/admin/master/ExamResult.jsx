@@ -1,44 +1,34 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { fetchExamSchedules, fetchBatches, fetchExamResults, createExamResult, updateExamResult, deleteExamResult, resetMasterStatus, fetchNextResultNumbers, fetchExamScheduleDetails } from '../../../features/master/masterSlice';
+import { 
+  fetchExamSchedules, 
+  fetchBatches, 
+  fetchExamResults, 
+  deleteExamResult 
+} from '../../../features/master/masterSlice';
 
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
-import { toast } from 'react-toastify';
-import { Plus, Search, RefreshCw, Edit, Printer, Award, Save, Trash2 } from 'lucide-react';
-import StudentSearch from '../../../components/StudentSearch';
+import { Search, RefreshCw, Edit, Printer, Award, Trash2, Plus } from 'lucide-react';
 
 const ExamResult = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { examSchedules, examScheduleDetails, batches, examResults, nextResultNumbers, isSuccess, message, isLoading } = useSelector((state) => state.master);
+  const { examSchedules, examResults, batches } = useSelector((state) => state.master);
 
-  // Local State
-  const [showForm, setShowForm] = useState(false);
-  const [editMode, setEditMode] = useState(null);
-  const [filters, setFilters] = useState({ examId: '', batch: '', studentId: '' });
+  // Local State for Filters
+  const [filters, setFilters] = useState({ examName: '', courseId: '', studentId: '' });
   
+  // Search dropdown states
+  const [isFilterExamDropdownOpen, setIsFilterExamDropdownOpen] = useState(false);
+  const [filterExamSearch, setFilterExamSearch] = useState('');
+  const [isFilterCourseDropdownOpen, setIsFilterCourseDropdownOpen] = useState(false);
+  const [filterCourseSearch, setFilterCourseSearch] = useState('');
+  const [isFilterStudentDropdownOpen, setIsFilterStudentDropdownOpen] = useState(false);
+  const [filterStudentSearch, setFilterStudentSearch] = useState('');
+
   // Pagination State
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-
-  // Form Setup
-  const { register, handleSubmit, reset, setValue, watch, control } = useForm({
-    defaultValues: {
-        subjectMarks: []
-    }
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "subjectMarks"
-  });
-
-  const selectedExamId = watch('examId');
-  const subjectMarksValues = useWatch({
-    control,
-    name: 'subjectMarks'
-  });
 
   useEffect(() => {
     dispatch(fetchExamSchedules());
@@ -46,105 +36,50 @@ const ExamResult = () => {
     dispatch(fetchExamResults());
   }, [dispatch]);
 
-  useEffect(() => {
-    if (isSuccess && message) {
-        toast.success(message);
-        dispatch(resetMasterStatus());
-        if (showForm) setShowForm(false);
-        setEditMode(null);
-        reset();
-    }
-  }, [isSuccess, message, dispatch, showForm, reset]);
+  const activeExamSchedules = useMemo(() => {
+    return examSchedules.filter(e => e.isActive && !e.isDeleted && e.course && e.examName && e.attendees && e.attendees.length > 0);
+  }, [examSchedules]);
 
-  // Update SOM/CSR when nextResultNumbers changes
-  useEffect(() => {
-    if (nextResultNumbers && !editMode && showForm) {
-        setValue('somNumber', nextResultNumbers.somNumber);
-        setValue('csrNumber', nextResultNumbers.csrNumber);
-    }
-  }, [nextResultNumbers, editMode, showForm, setValue]);
+  const uniqueExamNames = useMemo(() => {
+    const names = new Set();
+    activeExamSchedules.forEach(e => {
+      if (e.examName) names.add(e.examName);
+    });
+    return Array.from(names);
+  }, [activeExamSchedules]);
 
-  // Handle Exam Selection Change - Load subjects and attendees
-  useEffect(() => {
-    if (selectedExamId) {
-        // Fetch full details (including attendees) from backend
-        dispatch(fetchExamScheduleDetails(selectedExamId));
-        
-        if (!editMode) {
-            const selectedExam = examSchedules.find(e => e._id === selectedExamId);
-            if (selectedExam && selectedExam.timeTable) {
-                const initialMarks = selectedExam.timeTable.map(item => ({
-                    subjectId: item.subject?._id || item.subject,
-                    subjectName: item.subject?.name || 'Subject',
-                    theory: 0,
-                    practical: 0,
-                    total: 0,
-                    maxMarks: item.total || 100
-                }));
-                setValue('subjectMarks', initialMarks);
-            }
+  const coursesForSelectedExamFilter = useMemo(() => {
+    const coursesMap = new Map();
+    activeExamSchedules
+      .filter(e => !filters.examName || e.examName === filters.examName)
+      .forEach(e => {
+        if (e.course && e.course._id) {
+          coursesMap.set(e.course._id, e.course);
         }
-    }
-  }, [selectedExamId, examSchedules, setValue, editMode, dispatch]);
+      });
+    return Array.from(coursesMap.values());
+  }, [filters.examName, activeExamSchedules]);
 
-  // Auto-calculate Total (Removed Auto-Grade as per user request)
-  const totals = useMemo(() => {
-    if (!subjectMarksValues) return { obtained: 0, total: 0, percentage: 0 };
-    const obtained = subjectMarksValues.reduce((sum, s) => sum + (Number(s.theory) || 0) + (Number(s.practical) || 0), 0);
-    const total = subjectMarksValues.reduce((sum, s) => sum + (Number(s.maxMarks) || 100), 0);
-    const percentage = total > 0 ? (obtained / total) * 100 : 0;
-    
-    return { obtained, total, percentage };
-  }, [subjectMarksValues]);
+  const studentsWithResultsFiltered = useMemo(() => {
+    const studentsMap = new Map();
+    examResults.forEach(res => {
+      if (filters.examName && res.exam?.examName !== filters.examName) return;
+      if (filters.courseId && res.course?._id !== filters.courseId) return;
+      if (res.student && res.student._id) {
+          studentsMap.set(res.student._id, res.student);
+      }
+    });
+    return Array.from(studentsMap.values());
+  }, [examResults, filters.examName, filters.courseId]);
 
   const onSearch = () => dispatch(fetchExamResults(filters));
   const onReset = () => {
-    setFilters({ examId: '', batch: '', studentId: '' });
+    setFilters({ examName: '', courseId: '', studentId: '' });
     dispatch(fetchExamResults());
   };
 
-  const onSubmit = (data) => {
-    // Process subject marks to ensure totals are calculated
-    const processedMarks = data.subjectMarks.map(s => ({
-        ...s,
-        total: (Number(s.theory) || 0) + (Number(s.practical) || 0)
-    }));
-
-    const finalData = { ...data, subjectMarks: processedMarks };
-
-    if (editMode) {
-        dispatch(updateExamResult({ id: editMode, data: finalData }));
-    } else {
-        dispatch(createExamResult(finalData));
-    }
-  };
-
-  const handleEdit = (result) => {
-    setEditMode(result._id);
-    setShowForm(true);
-    setValue('studentId', result.student._id);
-    setValue('examId', result.exam._id);
-    setValue('somNumber', result.somNumber);
-    setValue('csrNumber', result.csrNumber);
-    setValue('grade', result.grade);
-    setValue('isActive', result.isActive);
-
-    // Load existing subject marks
-    if (result.subjectMarks) {
-        const marks = result.subjectMarks.map(s => ({
-            subjectId: s.subject?._id || s.subject,
-            subjectName: s.subject?.name || 'Subject',
-            theory: s.theory,
-            practical: s.practical,
-            total: s.total,
-            maxMarks: 100 // Fallback or pull from exam if possible
-        }));
-        setValue('subjectMarks', marks);
-    }
-  };
-
   const printDocument = (type, result) => {
-      window.open(`/print/exam-result/${result._id}?type=${type}`, '_blank');
+    window.open(`/print/exam-result/${result._id}?type=${type}`, '_blank');
   };
 
   const handleDelete = (result) => {
@@ -161,161 +96,201 @@ const ExamResult = () => {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Exam Results</h2>
-        {!showForm && (
-            <button onClick={() => { setShowForm(true); reset(); setEditMode(null); dispatch(fetchNextResultNumbers()); }} className="bg-primary text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700">
-                <Plus size={18} /> Add New Result
-            </button>
-        )}
+        <button 
+          onClick={() => navigate('/master/exam-result/add')} 
+          className="bg-primary text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
+        >
+          <Plus size={18} /> Add New Result
+        </button>
       </div>
 
-      {/* --- ADD / EDIT FORM --- */}
-      {showForm && (
-        <div className="bg-white p-6 rounded shadow mb-6 border-l-4 border-primary animate-fadeIn">
-            <h3 className="text-lg font-bold mb-4">{editMode ? 'Edit Result' : 'Add New Exam Result'}</h3>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Select Exam Schedule FIRST */}
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                        <label className="block text-sm font-black text-blue-900 uppercase mb-2">1. Select Exam Schedule</label>
-                        <select {...register('examId', {required: true})} className="border-2 border-blue-200 p-3 rounded-lg w-full bg-white focus:border-primary outline-none transition-all shadow-sm font-bold">
-                            <option value="">-- Choose Exam Schedule --</option>
-                            {examSchedules.map(e => <option key={e._id} value={e._id}>{e.examName} ({e.course?.name})</option>)}
-                        </select>
-                    </div>
-
-                    {/* Student Selection - Filtered by Exam Attendees */}
-                    <div className={`p-4 rounded-lg border transition-all ${selectedExamId ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100 opacity-50'}`}>
-                        <label className="block text-sm font-black text-green-900 uppercase mb-2">2. Select Student (Attendees Only)</label>
-                        <select 
-                            {...register('studentId', {required: true})} 
-                            className="border-2 border-green-200 p-3 rounded-lg w-full bg-white focus:border-green-500 outline-none transition-all shadow-sm font-bold"
-                            disabled={!selectedExamId}
-                        >
-                            <option value="">{selectedExamId ? '-- Select Student --' : '-- Choose Exam First --'}</option>
-                            {examScheduleDetails?.attendees?.map(student => (
-                                <option key={student._id} value={student._id}>
-                                    {student.studentName} ({student.regNo})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Subject-wise Marks Table */}
-                {fields.length > 0 && (
-                    <div className="border rounded overflow-hidden">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-100 text-xs font-bold uppercase text-gray-600">
-                                <tr>
-                                    <th className="p-3">Subject</th>
-                                    <th className="p-3 w-32 text-center">Theory</th>
-                                    <th className="p-3 w-32 text-center">Practical</th>
-                                    <th className="p-3 w-32 text-center">Total</th>
-                                    <th className="p-3 w-24 text-center">Max</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {fields.map((field, index) => (
-                                    <tr key={field.id} className="hover:bg-gray-50">
-                                        <td className="p-3 font-medium">
-                                            {subjectMarksValues[index]?.subjectName}
-                                            <input type="hidden" {...register(`subjectMarks.${index}.subjectId`)} />
-                                            <input type="hidden" {...register(`subjectMarks.${index}.subjectName`)} />
-                                        </td>
-                                        <td className="p-2">
-                                            <input type="number" {...register(`subjectMarks.${index}.theory`, { valueAsNumber: true })} className="w-full border p-2 rounded text-center focus:border-primary" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input type="number" {...register(`subjectMarks.${index}.practical`, { valueAsNumber: true })} className="w-full border p-2 rounded text-center focus:border-primary" />
-                                        </td>
-                                        <td className="p-2 text-center font-bold text-blue-600">
-                                            {(Number(subjectMarksValues[index]?.theory) || 0) + (Number(subjectMarksValues[index]?.practical) || 0)}
-                                        </td>
-                                        <td className="p-2 text-center text-gray-400">
-                                            <input type="number" {...register(`subjectMarks.${index}.maxMarks`)} className="w-full bg-transparent text-center" readOnly />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <tfoot className="bg-blue-50 font-bold">
-                                <tr>
-                                    <td className="p-3 text-right">GRAND TOTAL:</td>
-                                    <td colSpan="2"></td>
-                                    <td className="p-3 text-center text-lg text-primary">{totals.obtained} / {totals.total}</td>
-                                    <td className="p-3 text-center text-xs text-gray-500">{totals.percentage.toFixed(2)}%</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded border border-dashed border-gray-300">
-                    <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">SOM Number</label>
-                        <input {...register('somNumber')} className="border p-2 rounded w-full bg-white" placeholder="Auto-generates if empty" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">CSR Number</label>
-                        <input {...register('csrNumber')} className="border p-2 rounded w-full bg-white" placeholder="Auto-generates if empty" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Grade</label>
-                        <input {...register('grade')} className="border p-2 rounded w-full bg-white font-bold text-primary" placeholder="Enter Grade (e.g. FIRST)" />
-                    </div>
-                    <div className="flex items-center gap-2 pt-6">
-                        <input type="checkbox" {...register('isActive')} id="isActive" className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary" defaultChecked />
-                        <label htmlFor="isActive" className="text-sm font-bold text-gray-700">Is Active Result</label>
-                    </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                    <button type="button" onClick={() => setShowForm(false)} className="border px-6 py-2 rounded font-medium hover:bg-gray-100 transition-colors">Cancel</button>
-                    <button type="submit" disabled={isLoading} className="bg-green-600 text-white px-10 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700 shadow-md disabled:opacity-70 disabled:cursor-not-allowed transition-all">
-                        {isLoading ? <RefreshCw className="animate-spin" size={18} /> : <Save size={20} />} 
-                        {isLoading ? 'Saving...' : 'Save & Generate Result'}
-                    </button>
-                </div>
-            </form>
-        </div>
-      )}
-
       {/* --- FILTER SECTION --- */}
-      {!showForm && (
-        <div className="bg-white p-4 rounded shadow mb-6 border border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Exam Schedule</label>
-                    <select className="border p-2 rounded w-full text-sm" value={filters.examId} onChange={(e) => setFilters({...filters, examId: e.target.value})}>
-                        <option value="">-- All Exams --</option>
-                        {examSchedules.map(e => <option key={e._id} value={e._id}>{e.examName}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Batch Name</label>
-                    <input list="batchList" className="border p-2 rounded w-full text-sm" placeholder="Select Batch"
-                        value={filters.batch} onChange={(e) => setFilters({...filters, batch: e.target.value})} />
-                    <datalist id="batchList">{batches.map(b => <option key={b._id} value={b.name} />)}</datalist>
-                </div>
-                <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Student Identity</label>
-                    <StudentSearch 
-                        placeholder="Search by Name or Reg No..."
-                        onSelect={(id) => setFilters({...filters, studentId: id})}
-                        defaultSelectedId={filters.studentId}
-                        additionalFilters={{ isRegistered: 'true' }}
-                        className="z-50" 
-                    />
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={onReset} className="bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200 transition-colors" title="Reset Filters"><RefreshCw size={18}/></button>
-                    <button onClick={onSearch} className="bg-gray-900 text-white px-6 py-2 rounded font-bold hover:bg-black w-full transition-all flex items-center justify-center gap-2">
-                        <Search size={18} /> Search
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
+      <div className="bg-white p-4 rounded shadow mb-6 border border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              
+              {/* Exam Name Search Dropdown */}
+              <div className="relative">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Exam Name</label>
+                  <div className="relative">
+                      <button 
+                          type="button"
+                          onClick={() => setIsFilterExamDropdownOpen(!isFilterExamDropdownOpen)}
+                          className="border p-2 rounded w-full text-left bg-white flex justify-between items-center text-sm min-h-[38px]"
+                      >
+                          <span className={filters.examName ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                              {filters.examName || '-- All Exams --'}
+                          </span>
+                          <span className="text-gray-400 text-xs">▼</span>
+                      </button>
+                      
+                      {isFilterExamDropdownOpen && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg z-50 max-h-[250px] overflow-y-auto p-2">
+                              <div className="p-1 mb-2">
+                                  <input 
+                                      type="text" 
+                                      placeholder="Search Exam..."
+                                      value={filterExamSearch}
+                                      onChange={(e) => setFilterExamSearch(e.target.value)}
+                                      className="border p-1.5 rounded text-xs w-full focus:ring-1 focus:ring-primary outline-none font-medium"
+                                  />
+                              </div>
+                              <div className="divide-y divide-gray-100 max-h-[160px] overflow-y-auto font-medium">
+                                  <div 
+                                      onClick={() => {
+                                          setFilters({...filters, examName: '', courseId: '', studentId: ''});
+                                          setIsFilterExamDropdownOpen(false);
+                                          setFilterExamSearch('');
+                                      }}
+                                      className="p-2 text-xs hover:bg-blue-50 text-gray-500 cursor-pointer rounded italic"
+                                  >
+                                      -- All Exams --
+                                  </div>
+                                  {uniqueExamNames && uniqueExamNames.filter(name => name.toLowerCase().includes(filterExamSearch.toLowerCase())).map(name => (
+                                      <div 
+                                          key={name} 
+                                          onClick={() => {
+                                              setFilters({...filters, examName: name, courseId: '', studentId: ''});
+                                              setIsFilterExamDropdownOpen(false);
+                                              setFilterExamSearch('');
+                                          }}
+                                          className="p-2 text-xs hover:bg-blue-50 text-gray-700 cursor-pointer rounded font-bold"
+                                      >
+                                          {name}
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Course Name Search Dropdown */}
+              <div className="relative">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Course Name</label>
+                  <div className="relative">
+                      <button 
+                          type="button"
+                          onClick={() => setIsFilterCourseDropdownOpen(!isFilterCourseDropdownOpen)}
+                          className="border p-2 rounded w-full text-left bg-white flex justify-between items-center text-sm min-h-[38px]"
+                      >
+                          <span className={filters.courseId ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                              {coursesForSelectedExamFilter.find(c => c._id === filters.courseId)?.name || '-- All Courses --'}
+                          </span>
+                          <span className="text-gray-400 text-xs">▼</span>
+                      </button>
+                      
+                      {isFilterCourseDropdownOpen && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg z-50 max-h-[250px] overflow-y-auto p-2">
+                              <div className="p-1 mb-2">
+                                  <input 
+                                      type="text" 
+                                      placeholder="Search Course..."
+                                      value={filterCourseSearch}
+                                      onChange={(e) => setFilterCourseSearch(e.target.value)}
+                                      className="border p-1.5 rounded text-xs w-full focus:ring-1 focus:ring-primary outline-none font-medium"
+                                  />
+                              </div>
+                              <div className="divide-y divide-gray-100 max-h-[160px] overflow-y-auto font-medium">
+                                  <div 
+                                      onClick={() => {
+                                          setFilters({...filters, courseId: '', studentId: ''});
+                                          setIsFilterCourseDropdownOpen(false);
+                                          setFilterCourseSearch('');
+                                      }}
+                                      className="p-2 text-xs hover:bg-blue-50 text-gray-500 cursor-pointer rounded italic"
+                                  >
+                                      -- All Courses --
+                                  </div>
+                                  {coursesForSelectedExamFilter && coursesForSelectedExamFilter.filter(c => c.name.toLowerCase().includes(filterCourseSearch.toLowerCase())).map(c => (
+                                      <div 
+                                          key={c._id} 
+                                          onClick={() => {
+                                              setFilters({...filters, courseId: c._id, studentId: ''});
+                                              setIsFilterCourseDropdownOpen(false);
+                                              setFilterCourseSearch('');
+                                          }}
+                                          className="p-2 text-xs hover:bg-blue-50 text-gray-700 cursor-pointer rounded font-bold"
+                                      >
+                                          {c.name}
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Student Name Search Dropdown */}
+              <div className="relative">
+                  <label className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Student Name</label>
+                  <div className="relative">
+                      <button 
+                          type="button"
+                          onClick={() => setIsFilterStudentDropdownOpen(!isFilterStudentDropdownOpen)}
+                          className="border p-2 rounded w-full text-left bg-white flex justify-between items-center text-sm min-h-[38px]"
+                      >
+                          <span className={filters.studentId ? 'text-gray-900 font-medium' : 'text-gray-400'}>
+                              {studentsWithResultsFiltered.find(s => s._id === filters.studentId)
+                                  ? `${studentsWithResultsFiltered.find(s => s._id === filters.studentId)?.firstName} ${studentsWithResultsFiltered.find(s => s._id === filters.studentId)?.lastName} (${studentsWithResultsFiltered.find(s => s._id === filters.studentId)?.regNo})`
+                                  : '-- All Students --'}
+                          </span>
+                          <span className="text-gray-400 text-xs">▼</span>
+                      </button>
+                      
+                      {isFilterStudentDropdownOpen && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border rounded shadow-lg z-50 max-h-[250px] overflow-y-auto p-2">
+                              <div className="p-1 mb-2">
+                                  <input 
+                                      type="text" 
+                                      placeholder="Search Student..."
+                                      value={filterStudentSearch}
+                                      onChange={(e) => setFilterStudentSearch(e.target.value)}
+                                      className="border p-1.5 rounded text-xs w-full focus:ring-1 focus:ring-primary outline-none font-medium"
+                                  />
+                              </div>
+                              <div className="divide-y divide-gray-100 max-h-[160px] overflow-y-auto font-medium">
+                                  <div 
+                                      onClick={() => {
+                                          setFilters({...filters, studentId: ''});
+                                          setIsFilterStudentDropdownOpen(false);
+                                          setFilterStudentSearch('');
+                                      }}
+                                      className="p-2 text-xs hover:bg-blue-50 text-gray-500 cursor-pointer rounded italic"
+                                  >
+                                      -- All Students --
+                                  </div>
+                                  {studentsWithResultsFiltered && studentsWithResultsFiltered.filter(s => {
+                                      const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
+                                      const regNo = (s.regNo || '').toLowerCase();
+                                      const search = filterStudentSearch.toLowerCase();
+                                      return fullName.includes(search) || regNo.includes(search);
+                                  }).map(student => (
+                                      <div 
+                                          key={student._id} 
+                                          onClick={() => {
+                                              setFilters({...filters, studentId: student._id});
+                                              setIsFilterStudentDropdownOpen(false);
+                                              setFilterStudentSearch('');
+                                          }}
+                                          className="p-2 text-xs hover:bg-blue-50 text-gray-700 cursor-pointer rounded font-bold"
+                                      >
+                                          {student.firstName} {student.lastName} ({student.regNo})
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              <div className="flex gap-2">
+                  <button onClick={onReset} className="bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200 transition-colors" title="Reset Filters"><RefreshCw size={18}/></button>
+                  <button onClick={onSearch} className="bg-gray-900 text-white px-6 py-2 rounded font-bold hover:bg-black w-full transition-all flex items-center justify-center gap-2">
+                      <Search size={18} /> Search
+                  </button>
+              </div>
+          </div>
+      </div>
 
       {/* --- TABLE SECTION --- */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
@@ -376,7 +351,7 @@ const ExamResult = () => {
                                     <button onClick={() => printDocument('Certificate', res)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors" title="Certificate">
                                         <Award size={18} />
                                     </button>
-                                    <button onClick={() => handleEdit(res)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                                    <button onClick={() => navigate(`/master/exam-result/edit/${res._id}`)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
                                         <Edit size={18} />
                                     </button>
                                     <button onClick={() => handleDelete(res)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
@@ -386,7 +361,7 @@ const ExamResult = () => {
                             </td>
                         </tr>
                     )) : (
-                        <tr><td colSpan="7" className="text-center py-16">
+                        <tr><td colSpan="8" className="text-center py-16">
                             <div className="flex flex-col items-center text-gray-300">
                                 <Search size={48} className="mb-2 opacity-20" />
                                 <p className="italic">No exam results found matching your criteria.</p>

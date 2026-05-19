@@ -5,6 +5,7 @@ const Subject = require('../models/Subject');
 const Student = require('../models/Student'); // Imported Student model for aggregation
 const Reference = require('../models/Reference');
 const Education = require('../models/Education');
+const Exam = require('../models/Exam');
 const asyncHandler = require('express-async-handler');
 
 // --- COURSE CONTROLLERS ---
@@ -256,11 +257,33 @@ const createEducation = asyncHandler(async (req, res) => {
     res.status(201).json(education);
 });
 
+// --- EXAM NAME MASTER CONTROLLERS ---
+const getExams = asyncHandler(async (req, res) => {
+    const exams = await Exam.find({ isDeleted: false }).sort({ name: 1 });
+    res.json(exams);
+});
+
+const createExam = asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    if (!name) {
+        res.status(400);
+        throw new Error('Exam name is required');
+    }
+    const exists = await Exam.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }, isDeleted: false });
+    if (exists) {
+        res.status(400);
+        throw new Error('Exam name already exists');
+    }
+    const exam = await Exam.create({ name: name.trim() });
+    res.status(201).json(exam);
+});
+
 module.exports = { 
     getCourses, createCourse, updateCourse, deleteCourse, 
     getBatches, createBatch, updateBatch, deleteBatch,
     getSubjects, createSubject, updateSubject, deleteSubject,
     createEmployee, getEmployees,
     getReferences, createReference,
-    getEducations, createEducation
+    getEducations, createEducation,
+    getExams, createExam
 };

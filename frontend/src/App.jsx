@@ -34,6 +34,7 @@ const BlogPage = lazy(() => import("./pages/user/BlogPage"));
 const FeedbackPage = lazy(() => import("./pages/user/FeedbackPage"));
 const OnlineAdmission = lazy(() => import("./pages/user/OnlineAdmission"));
 const TermsAndConditions = lazy(() => import("./pages/user/TermsAndConditions"));
+const VerifyStudent = lazy(() => import("./pages/user/VerifyStudent"));
 
 // Student Pages
 const StudentHome = lazy(() => import("./pages/student/StudentHome"));
@@ -66,6 +67,7 @@ const ExamRequestList = lazy(() =>
 );
 const ExamSchedule = lazy(() => import("./pages/admin/master/ExamSchedule"));
 const ExamResult = lazy(() => import("./pages/admin/master/ExamResult"));
+const AddEditExamResult = lazy(() => import("./pages/admin/master/AddEditExamResult"));
 const ManageNews = lazy(() => import('./pages/admin/master/ManageNews'));
 const ManageToppers = lazy(() => import('./pages/admin/master/ManageToppers'));
 const ManageTerms = lazy(() => import("./pages/admin/master/ManageTerms"));
@@ -291,6 +293,22 @@ function App() {
                 element={
                   <PrivateRoute>
                     <ExamResult />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/master/exam-result/add"
+                element={
+                  <PrivateRoute>
+                    <AddEditExamResult />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/master/exam-result/edit/:id"
+                element={
+                  <PrivateRoute>
+                    <AddEditExamResult />
                   </PrivateRoute>
                 }
               />
@@ -731,6 +749,7 @@ function App() {
                 <Route path="/feedback" element={<FeedbackPage />} />
                 <Route path="/online-admission" element={<OnlineAdmission />} />
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="/verify-student" element={<VerifyStudent />} />
               </Route>
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

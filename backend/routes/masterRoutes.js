@@ -8,7 +8,8 @@ const {
     createEmployee, getEmployees,
     getSubjects, createSubject, updateSubject, deleteSubject,
     getReferences, createReference,
-    getEducations, createEducation
+    getEducations, createEducation,
+    getExams, createExam
 } = require('../controllers/masterController');
 const { getExamRequests, cancelExamRequest, createExamRequest, getPendingExams } = require('../controllers/examController');
 const { getExamSchedules, createExamSchedule, updateExamSchedule, deleteExamSchedule, getExamScheduleDetails } = require('../controllers/examScheduleController');
@@ -59,6 +60,11 @@ router.route('/reference')
 router.route('/education')
     .get(getEducations) // Public Access
     .post(protect, createEducation);
+
+// --- Exam Name Routes ---
+router.route('/exam-name')
+    .get(protect, getExams)
+    .post(protect, createExam);
     
 // --- Exam Request Routes ---
 router.route('/exam-request')
