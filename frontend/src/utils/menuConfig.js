@@ -50,7 +50,7 @@ export const MENU_CONFIG = [
         type: 'nested',
         subItems: [
           { title: 'Todays Visitors List', path: '/transaction/visitors/todays-list' },
-          { title: 'Todays Visited Report', path: '/transaction/visitors/todays-report' },
+          { title: 'Activity Visitor Report', path: '/transaction/visitors/todays-report' },
           { title: 'Visitors', path: '/transaction/visitors' }
         ]
       },

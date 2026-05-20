@@ -4,6 +4,8 @@ const visitorSchema = new mongoose.Schema({
     visitingDate: { type: Date, required: true, default: Date.now },
     studentName: { type: String, required: true },
     mobileNumber: { type: String, required: true },
+    contactParent: { type: String },
+    contactHome: { type: String },
     // Reference can be a simple string (Employee Name) or a new external person
     reference: { type: String }, 
     referenceContact: { type: String }, // For new external references

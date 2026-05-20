@@ -196,6 +196,50 @@ const StudentAdmission = () => {
       
       // Clear the location state to prevent re-filling on re-render
       window.history.replaceState({}, document.title);
+    } else if (location.state?.visitorData) {
+      const profile = location.state.visitorData;
+      
+      const nameParts = (profile.studentName || "").trim().split(/\s+/);
+      let first = "";
+      let middle = "";
+      let last = "";
+      
+      if (nameParts.length === 1) {
+        first = nameParts[0];
+      } else if (nameParts.length === 2) {
+        first = nameParts[0];
+        last = nameParts[1];
+      } else if (nameParts.length > 2) {
+        first = nameParts[0];
+        last = nameParts[nameParts.length - 1];
+        middle = nameParts.slice(1, nameParts.length - 1).join(" ");
+      }
+      
+      setValue("firstName", first, { shouldValidate: true });
+      setValue("lastName", last, { shouldValidate: true });
+      setValue("middleName", middle, { shouldValidate: true });
+      setValue("mobileStudent", profile.mobileNumber || "", { shouldValidate: true });
+      setValue("mobileParent", profile.contactParent || "", { shouldValidate: true });
+      setValue("contactHome", profile.contactHome || "", { shouldValidate: true });
+      setValue("reference", profile.reference || "Direct", { shouldValidate: true });
+      setValue("remarks", profile.remarks || "", { shouldValidate: true });
+      
+      if (profile.branchId) {
+        setValue("branchId", profile.branchId._id || profile.branchId, { shouldValidate: true });
+      }
+      
+      if (profile.course) {
+        setValue("selectedCourseId", profile.course._id || profile.course, { shouldValidate: true });
+      }
+      
+      if (profile.inquiryId) {
+        setInquiryIdFromAdmission(profile.inquiryId._id || profile.inquiryId);
+      } else {
+        setInquiryIdFromAdmission(null);
+      }
+      
+      toast.success("Student data pre-filled from visitor profile!");
+      window.history.replaceState({}, document.title);
     }
   }, [location, setValue]);
 
@@ -327,11 +371,103 @@ const StudentAdmission = () => {
         return;
       }
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/transaction/inquiry`, {
-          params: { search: name },
-          withCredentials: true
+        const [inquiriesRes, visitorsRes] = await Promise.all([
+          axios.get(`${import.meta.env.VITE_API_URL}/transaction/inquiry`, {
+            params: { search: name },
+            withCredentials: true
+          }),
+          axios.get(`${import.meta.env.VITE_API_URL}/visitors/all`, {
+            params: { search: name },
+            withCredentials: true
+          })
+        ]);
+
+        const admittedStudents = students || [];
+
+        const isAlreadyAdmitted = (pName, pMobileS, pMobileP, pMobileH) => {
+          const cleanPName = (pName || '').toLowerCase().replace(/\s+/g, '');
+          if (!cleanPName) return false;
+          
+          return admittedStudents.some(s => {
+            const cleanSName = `${s.firstName || ''}${s.lastName || ''}`.toLowerCase().replace(/\s+/g, '');
+            
+            // For a more lenient search, we can check if they share a significant part of the name
+            // But to avoid blocking siblings, exact match or partial match on name is safer.
+            const nameMatch = cleanSName === cleanPName || cleanPName.includes(cleanSName) || cleanSName.includes(cleanPName);
+            
+            const mobileSMatch = pMobileS && (
+              pMobileS === s.mobileStudent || 
+              pMobileS === s.mobileParent || 
+              pMobileS === s.contactHome
+            );
+            const mobilePMatch = pMobileP && (
+              pMobileP === s.mobileStudent || 
+              pMobileP === s.mobileParent || 
+              pMobileP === s.contactHome
+            );
+            const mobileHMatch = pMobileH && (
+              pMobileH === s.mobileStudent || 
+              pMobileH === s.mobileParent || 
+              pMobileH === s.contactHome
+            );
+            
+            const hasMobileMatch = mobileSMatch || mobilePMatch || mobileHMatch;
+            const hasProfileMobile = !!(pMobileS || pMobileP || pMobileH);
+            
+            // If they have a mobile, they MUST match both name (or part of it) AND mobile to be considered identical.
+            // This prevents siblings (same mobile, different name) from being blocked.
+            if (hasProfileMobile) {
+                return nameMatch && hasMobileMatch;
+            }
+            // If no mobile, rely on name match
+            return nameMatch;
+          });
+        };
+
+        const filteredInquiries = (inquiriesRes.data || []).filter(inq => {
+          const fullName = `${inq.firstName || ''} ${inq.lastName || ''}`.trim();
+          return !isAlreadyAdmitted(fullName, inq.contactStudent, inq.contactParent, inq.contactHome);
         });
-        setMatches(res.data.slice(0, 5));
+
+        const filteredVisitors = (visitorsRes.data || []).filter(vis => {
+          return !isAlreadyAdmitted(vis.studentName, vis.mobileNumber, vis.contactParent, vis.contactHome);
+        });
+
+        const mergedSuggestions = [];
+
+        filteredInquiries.forEach(inq => {
+          mergedSuggestions.push({
+            ...inq,
+            type: 'Inquiry'
+          });
+        });
+
+        filteredVisitors.forEach(vis => {
+          const isDuplicate = mergedSuggestions.some(item => {
+            const isSameInquiryId = vis.inquiryId && (
+              (typeof vis.inquiryId === 'object' && vis.inquiryId?._id === item._id) || 
+              (typeof vis.inquiryId === 'string' && vis.inquiryId === item._id)
+            );
+            
+            const cleanVisName = (vis.studentName || '').toLowerCase().replace(/\s+/g, '');
+            const cleanItemName = `${item.firstName || ''}${item.lastName || ''}`.toLowerCase().replace(/\s+/g, '');
+            const isSameNameAndPhone = cleanVisName === cleanItemName && (
+              vis.mobileNumber === item.contactStudent || 
+              vis.mobileNumber === item.contactParent
+            );
+            
+            return isSameInquiryId || isSameNameAndPhone;
+          });
+
+          if (!isDuplicate) {
+            mergedSuggestions.push({
+              ...vis,
+              type: 'Visitor'
+            });
+          }
+        });
+
+        setMatches(mergedSuggestions.slice(0, 10));
       } catch (err) {
         console.error("Match fetch failed", err);
       }
@@ -373,52 +509,101 @@ const StudentAdmission = () => {
 
 // isNewReference effect removed
 
-  const handleFillFromInquiry = (inquiry) => {
-    if (inquiry) {
-      setValue("firstName", inquiry.firstName, { shouldValidate: true });
-      setValue("lastName", inquiry.lastName, { shouldValidate: true });
-      setValue("middleName", inquiry.middleName || "", { shouldValidate: true });
-      setValue("email", inquiry.email || "", { shouldValidate: true });
-      setValue("gender", inquiry.gender || "Male", { shouldValidate: true });
-      setValue("mobileParent", inquiry.contactParent || "", { shouldValidate: true });
-      setValue("mobileStudent", inquiry.contactStudent || "", { shouldValidate: true });
-      setValue("address", inquiry.address || "", { shouldValidate: true });
-      
-      if (inquiry.state) {
-          setValue("state", inquiry.state, { shouldValidate: true });
-          const stateObj = states.find(s => s.name === inquiry.state);
-          if (stateObj) {
-              const citiesForState = cities.filter(c => 
-                c.stateId?._id === stateObj._id || c.stateId === stateObj._id
-              );
-              setFilteredCities(citiesForState);
-              setTimeout(() => {
-                  setValue("city", inquiry.city || "", { shouldValidate: true });
-              }, 100);
-          } else {
-              setValue("city", inquiry.city || "", { shouldValidate: true });
-          }
-      }
+  const handleFillFromProfile = (profile) => {
+    if (profile) {
+      if (profile.type === 'Visitor') {
+        const nameParts = (profile.studentName || "").trim().split(/\s+/);
+        let first = "";
+        let middle = "";
+        let last = "";
+        
+        if (nameParts.length === 1) {
+          first = nameParts[0];
+        } else if (nameParts.length === 2) {
+          first = nameParts[0];
+          last = nameParts[1];
+        } else if (nameParts.length > 2) {
+          first = nameParts[0];
+          last = nameParts[nameParts.length - 1];
+          middle = nameParts.slice(1, nameParts.length - 1).join(" ");
+        }
+        
+        setValue("firstName", first, { shouldValidate: true });
+        setValue("lastName", last, { shouldValidate: true });
+        setValue("middleName", middle, { shouldValidate: true });
+        setValue("mobileStudent", profile.mobileNumber || "", { shouldValidate: true });
+        setValue("mobileParent", profile.contactParent || "", { shouldValidate: true });
+        setValue("contactHome", profile.contactHome || "", { shouldValidate: true });
+        setValue("reference", profile.reference || "Direct", { shouldValidate: true });
+        setValue("remarks", profile.remarks || "", { shouldValidate: true });
+        
+        if (profile.branchId) {
+          setValue("branchId", profile.branchId._id || profile.branchId, { shouldValidate: true });
+        }
+        
+        if (profile.course) {
+          setValue("selectedCourseId", profile.course._id || profile.course, { shouldValidate: true });
+        }
+        
+        if (profile.inquiryId) {
+          setInquiryIdFromAdmission(profile.inquiryId._id || profile.inquiryId);
+        } else {
+          setInquiryIdFromAdmission(null);
+        }
+        
+        toast.info("Data Autofilled from Visitor");
+        setMatches([]);
+      } else {
+        setValue("firstName", profile.firstName, { shouldValidate: true });
+        setValue("lastName", profile.lastName, { shouldValidate: true });
+        setValue("middleName", profile.middleName || "", { shouldValidate: true });
+        setValue("email", profile.email || "", { shouldValidate: true });
+        setValue("gender", profile.gender || "Male", { shouldValidate: true });
+        setValue("mobileParent", profile.contactParent || "", { shouldValidate: true });
+        setValue("mobileStudent", profile.contactStudent || "", { shouldValidate: true });
+        setValue("contactHome", profile.contactHome || "", { shouldValidate: true });
+        setValue("address", profile.address || "", { shouldValidate: true });
+        
+        if (profile.state) {
+            setValue("state", profile.state, { shouldValidate: true });
+            const stateObj = states.find(s => s.name === profile.state);
+            if (stateObj) {
+                const citiesForState = cities.filter(c => 
+                  c.stateId?._id === stateObj._id || c.stateId === stateObj._id
+                );
+                setFilteredCities(citiesForState);
+                setTimeout(() => {
+                    setValue("city", profile.city || "", { shouldValidate: true });
+                }, 100);
+            } else {
+                setValue("city", profile.city || "", { shouldValidate: true });
+            }
+        }
 
-      setValue("education", inquiry.education || "", { shouldValidate: true });
-      setValue("dob", inquiry.dob ? new Date(inquiry.dob).toISOString().split('T')[0] : "", { shouldValidate: true });
-      setValue("reference", inquiry.referenceBy || "", { shouldValidate: true });
-      
-      if (inquiry.branchId) {
-          setValue("branchId", inquiry.branchId._id || inquiry.branchId, { shouldValidate: true });
-      }
+        setValue("education", profile.education || "", { shouldValidate: true });
+        setValue("dob", profile.dob ? new Date(profile.dob).toISOString().split('T')[0] : "", { shouldValidate: true });
+        setValue("reference", profile.referenceBy || "Direct", { shouldValidate: true });
+        
+        if (profile.branchId) {
+            setValue("branchId", profile.branchId._id || profile.branchId, { shouldValidate: true });
+        }
 
-      if (inquiry.interestedCourse) {
-          setValue("selectedCourseId", inquiry.interestedCourse._id || inquiry.interestedCourse, { shouldValidate: true });
-      }
+        if (profile.interestedCourse) {
+            setValue("selectedCourseId", profile.interestedCourse._id || profile.interestedCourse, { shouldValidate: true });
+        }
 
-      if (inquiry.studentPhoto) {
-          setPreviewImage(inquiry.studentPhoto);
-          setValue("studentPhoto", inquiry.studentPhoto, { shouldValidate: true });
-      }
+        if (profile.studentPhoto) {
+            setPreviewImage(profile.studentPhoto);
+            setValue("studentPhoto", profile.studentPhoto, { shouldValidate: true });
+        }
 
-      toast.info("Data Autofilled from Inquiry");
-      setMatches([]);
+        if (profile._id) {
+          setInquiryIdFromAdmission(profile._id);
+        }
+
+        toast.info("Data Autofilled from Inquiry");
+        setMatches([]);
+      }
     }
   };
 
@@ -781,32 +966,92 @@ const StudentAdmission = () => {
                 <div className="p-0 max-h-[80vh] overflow-y-auto">
                   {/* Student Basic Info Section */}
                   <div className="p-6 bg-orange-50/50 border-b border-orange-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Column 1 */}
                       <div className="space-y-4">
                         <div>
                           <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Full Name</p>
-                          <p className="font-bold text-gray-900 text-lg">{viewDetailsMatch.firstName} {viewDetailsMatch.middleName} {viewDetailsMatch.lastName}</p>
+                          <p className="font-bold text-gray-900 text-lg">
+                            {viewDetailsMatch.type === 'Visitor' ? viewDetailsMatch.studentName : `${viewDetailsMatch.firstName || ''} ${viewDetailsMatch.middleName || ''} ${viewDetailsMatch.lastName || ''}`}
+                          </p>
                         </div>
-                        <div className="flex gap-4">
-                          <div>
-                            <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Mobile</p>
-                            <p className="font-semibold text-gray-800 flex items-center gap-1.5"><Phone size={14} className="text-orange-500"/> {viewDetailsMatch.contactStudent || viewDetailsMatch.contactParent || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Gender</p>
-                            <p className="font-semibold text-gray-800">{viewDetailsMatch.gender || 'N/A'}</p>
-                          </div>
+                        <div>
+                          <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Mobile</p>
+                          <p className="font-semibold text-gray-800 flex items-center gap-1.5">
+                            <Phone size={14} className="text-orange-500"/> 
+                            {viewDetailsMatch.type === 'Visitor' ? (viewDetailsMatch.mobileNumber || viewDetailsMatch.contactParent || 'N/A') : (viewDetailsMatch.contactStudent || viewDetailsMatch.contactParent || 'N/A')}
+                          </p>
                         </div>
+                        {viewDetailsMatch.type === 'Visitor' && viewDetailsMatch.contactHome && (
+                            <div>
+                              <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Home Contact</p>
+                              <p className="font-semibold text-gray-800 flex items-center gap-1.5"><Phone size={14} className="text-orange-500"/> {viewDetailsMatch.contactHome}</p>
+                            </div>
+                        )}
+                        {viewDetailsMatch.type === 'Inquiry' && viewDetailsMatch.email && (
+                            <div>
+                              <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Email</p>
+                              <p className="font-semibold text-gray-800">{viewDetailsMatch.email}</p>
+                            </div>
+                        )}
                       </div>
+
+                      {/* Column 2 */}
                       <div className="space-y-4">
                         <div>
                           <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Last Interested Course</p>
-                          <p className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg inline-block border border-blue-100">{viewDetailsMatch.interestedCourse?.name || 'N/A'}</p>
+                          <p className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg inline-block border border-blue-100">
+                            {viewDetailsMatch.type === 'Visitor' ? (viewDetailsMatch.course?.name || viewDetailsMatch.course || 'N/A') : (viewDetailsMatch.interestedCourse?.name || 'N/A')}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Address</p>
-                          <p className="text-sm text-gray-700 leading-relaxed">{viewDetailsMatch.address ? `${viewDetailsMatch.address}, ${viewDetailsMatch.city}, ${viewDetailsMatch.state}` : 'N/A'}</p>
+                          <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Reference</p>
+                          <p className="font-semibold text-gray-800">
+                            {viewDetailsMatch.type === 'Visitor' ? (viewDetailsMatch.reference || 'Direct') : (viewDetailsMatch.referenceBy || 'Direct')}
+                          </p>
                         </div>
+                        <div>
+                          <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Gender</p>
+                          <p className="font-semibold text-gray-800">{viewDetailsMatch.gender || 'N/A'}</p>
+                        </div>
+                        {viewDetailsMatch.type === 'Inquiry' && viewDetailsMatch.education && (
+                            <div>
+                              <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Education</p>
+                              <p className="font-semibold text-gray-800">{viewDetailsMatch.education}</p>
+                            </div>
+                        )}
+                      </div>
+
+                      {/* Column 3 */}
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">
+                            {viewDetailsMatch.type === 'Visitor' ? 'Date Visited' : 'Inquiry Date'}
+                          </p>
+                          <p className="font-semibold text-gray-800">
+                            {viewDetailsMatch.type === 'Visitor' ? (viewDetailsMatch.visitingDate ? new Date(viewDetailsMatch.visitingDate).toLocaleDateString() : 'N/A') : (viewDetailsMatch.inquiryDate ? new Date(viewDetailsMatch.inquiryDate).toLocaleDateString() : 'N/A')}
+                          </p>
+                        </div>
+                        {viewDetailsMatch.type === 'Visitor' && (
+                            <div>
+                                <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Attended By</p>
+                                <p className="font-semibold text-gray-800">{viewDetailsMatch.attendedBy?.name || viewDetailsMatch.attendedBy?.username || 'N/A'}</p>
+                            </div>
+                        )}
+                        <div>
+                          <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">
+                            {viewDetailsMatch.type === 'Visitor' ? 'Remarks' : 'Address'}
+                          </p>
+                          <p className="text-sm text-gray-700 leading-relaxed">
+                            {viewDetailsMatch.type === 'Visitor' ? (viewDetailsMatch.remarks || 'N/A') : (viewDetailsMatch.address ? `${viewDetailsMatch.address}, ${viewDetailsMatch.city || ''}, ${viewDetailsMatch.state || ''}` : 'N/A')}
+                          </p>
+                        </div>
+                        {viewDetailsMatch.branchId && (
+                            <div>
+                                <p className="text-gray-500 uppercase text-[10px] font-bold tracking-wider mb-1">Branch</p>
+                                <p className="font-semibold text-gray-800">{viewDetailsMatch.branchId?.name || viewDetailsMatch.branchId || 'N/A'}</p>
+                            </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -815,7 +1060,9 @@ const StudentAdmission = () => {
                   <div className="p-6">
                     <div className="flex items-center gap-2 mb-4 border-b pb-2">
                       <History size={18} className="text-orange-600" />
-                      <h4 className="font-bold text-gray-800 uppercase text-xs tracking-widest">Inquiry History ({matchHistory.length})</h4>
+                      <h4 className="font-bold text-gray-800 uppercase text-xs tracking-widest">
+                        {viewDetailsMatch.type === 'Visitor' ? 'Visitor History' : 'Inquiry History'} ({matchHistory.length})
+                      </h4>
                     </div>
 
                     {isLoadingHistory ? (
@@ -834,21 +1081,21 @@ const StudentAdmission = () => {
                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                     hist.status === 'Converted' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
                                   }`}>
-                                    {hist.status}
+                                    {hist.status || 'Visitor'}
                                   </span>
                                 </div>
                                 <span className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
-                                  <Calendar size={12}/> {new Date(hist.inquiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  <Calendar size={12}/> {new Date(hist.inquiryDate || hist.visitingDate || new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                                 </span>
                               </div>
                               <div className="grid grid-cols-2 gap-4 mb-3">
                                 <div>
                                   <p className="text-[10px] text-gray-400 font-bold uppercase">Course</p>
-                                  <p className="text-xs font-bold text-gray-700">{hist.interestedCourse?.name || 'N/A'}</p>
+                                  <p className="text-xs font-bold text-gray-700">{hist.interestedCourse?.name || hist.course?.name || 'N/A'}</p>
                                 </div>
                                 <div>
                                   <p className="text-[10px] text-gray-400 font-bold uppercase">Reference</p>
-                                  <p className="text-xs font-bold text-gray-700">{hist.referenceBy || 'Direct'}</p>
+                                  <p className="text-xs font-bold text-gray-700">{hist.referenceBy || hist.reference || 'Direct'}</p>
                                 </div>
                               </div>
                               
@@ -869,7 +1116,7 @@ const StudentAdmission = () => {
                             </div>
                           ))
                         ) : (
-                          <div className="text-center py-6 text-gray-400 italic text-sm">No other inquiry records found.</div>
+                          <div className="text-center py-6 text-gray-400 italic text-sm">No other records found.</div>
                         )}
                       </div>
                     )}
@@ -880,7 +1127,7 @@ const StudentAdmission = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      handleFillFromInquiry(viewDetailsMatch);
+                      handleFillFromProfile(viewDetailsMatch);
                       setViewDetailsMatch(null);
                     }}
                     className="flex-1 bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-700 transition-shadow shadow-lg shadow-orange-600/20 flex items-center justify-center gap-2"
@@ -1994,24 +2241,24 @@ const StudentAdmission = () => {
                 {matches.map((match) => (
                   <div key={match._id} className="bg-white p-3 rounded-lg border border-orange-100 shadow-sm hover:border-orange-300 transition-colors group">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">
-                        {match.status || 'Inquiry'}
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${match.type === 'Visitor' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {match.type === 'Visitor' ? 'Visitor' : (match.status || 'Inquiry')}
                       </span>
                       <span className="text-[10px] text-gray-400">
-                        {match.inquiryDate ? new Date(match.inquiryDate).toLocaleDateString() : ''}
+                        {match.inquiryDate ? new Date(match.inquiryDate).toLocaleDateString() : (match.visitingDate ? new Date(match.visitingDate).toLocaleDateString() : '')}
                       </span>
                     </div>
                     <h4 className="font-bold text-gray-800 text-sm mb-1 group-hover:text-orange-600 transition-colors">
-                      {match.firstName} {match.lastName}
+                      {match.type === 'Visitor' ? match.studentName : `${match.firstName || ''} ${match.lastName || ''}`}
                     </h4>
                     <div className="space-y-1 text-xs text-gray-600">
-                      <p className="flex items-center gap-1.5"><Phone size={12}/> {match.contactStudent || match.contactParent}</p>
-                      <p className="flex items-center gap-1.5"><Book size={12}/> {match.interestedCourse?.name || 'No Course'}</p>
+                      <p className="flex items-center gap-1.5"><Phone size={12}/> {match.type === 'Visitor' ? (match.mobileNumber || match.contactParent) : (match.contactStudent || match.contactParent)}</p>
+                      <p className="flex items-center gap-1.5"><Book size={12}/> {match.type === 'Visitor' ? (match.course?.name || 'No Course') : (match.interestedCourse?.name || 'No Course')}</p>
                     </div>
                     <div className="flex gap-2 mt-3">
                       <button 
                         type="button"
-                        onClick={() => handleFillFromInquiry(match)}
+                        onClick={() => handleFillFromProfile(match)}
                         className="flex-1 py-1.5 bg-orange-600 text-white rounded text-[11px] font-bold hover:bg-orange-700 transition-colors flex items-center justify-center gap-1 shadow-sm"
                       >
                         <ArrowRight size={14}/> Use Profile
@@ -2020,12 +2267,12 @@ const StudentAdmission = () => {
                         type="button"
                         onClick={() => {
                           setViewDetailsMatch(match);
-                          fetchInquiryHistory(match.contactStudent || match.contactParent);
+                          fetchInquiryHistory(match.type === 'Visitor' ? (match.mobileNumber || match.contactParent) : (match.contactStudent || match.contactParent));
                         }}
                         className="p-1.5 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
                         title="View Details"
                       >
-                        <Eye size={16}/>
+                        <Eye size={16} />
                       </button>
                     </div>
                   </div>

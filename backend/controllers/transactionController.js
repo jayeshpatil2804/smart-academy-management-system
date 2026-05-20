@@ -83,6 +83,11 @@ const createInquiry = asyncHandler(async (req, res) => {
     data.branchId = req.user.branchId;
   }
 
+  // Automatically allocate to the logged-in user if not already specified
+  if (req.user && !data.allocatedTo) {
+    data.allocatedTo = req.user._id;
+  }
+
 
   if (data.referenceDetail && typeof data.referenceDetail === "string") {
     try {
@@ -90,6 +95,18 @@ const createInquiry = asyncHandler(async (req, res) => {
     } catch (e) {
       console.error("Error parsing referenceDetail", e);
     }
+  }
+
+  // Handle first follow-up creation history & count
+  if (data.followUpDate) {
+    const fDate = new Date(data.followUpDate);
+    data.followUpCount = 1;
+    data.followUpHistory = [{
+      date: fDate,
+      remarks: data.followUpDetails || data.remarks || "Inquiry Created (First Follow-up)",
+      status: data.status || "Open",
+      createdAt: new Date()
+    }];
   }
 
   const inquiry = await Inquiry.create(data);
@@ -100,6 +117,12 @@ const createInquiry = asyncHandler(async (req, res) => {
       inquiryId: inquiry._id,
     });
   }
+
+  await inquiry.populate([
+    { path: "branchId", select: "name shortCode" },
+    { path: "allocatedTo", select: "name" },
+    { path: "interestedCourse", select: "name" }
+  ]);
 
   res.status(201).json(inquiry);
 });
@@ -114,6 +137,21 @@ const updateInquiryStatus = asyncHandler(async (req, res) => {
         id: req.params.id,
         message: "Inquiry Removed Permanently",
       });
+    }
+
+    // Track follow-up changes
+    let hasFollowUpChanged = false;
+    let newFDate = null;
+    if (req.body.followUpDate !== undefined) {
+      newFDate = req.body.followUpDate ? new Date(req.body.followUpDate) : null;
+      const oldFDate = inquiry.followUpDate ? new Date(inquiry.followUpDate) : null;
+
+      const newTime = newFDate && !isNaN(newFDate.getTime()) ? newFDate.getTime() : null;
+      const oldTime = oldFDate && !isNaN(oldFDate.getTime()) ? oldFDate.getTime() : null;
+
+      if (newTime !== null && newTime !== oldTime) {
+        hasFollowUpChanged = true;
+      }
     }
 
     const fields = [
@@ -177,8 +215,23 @@ const updateInquiryStatus = asyncHandler(async (req, res) => {
       inquiry.studentPhoto = req.file.path.replace(/\\/g, "/");
     }
 
+    if (hasFollowUpChanged) {
+      const historyRemarks = req.body.newRemarks || req.body.followUpDetails || req.body.remarks || "Follow-up set";
+      inquiry.followUpHistory.push({
+        date: newFDate,
+        remarks: historyRemarks,
+        status: req.body.status || inquiry.status || "Open",
+        createdAt: new Date()
+      });
+      inquiry.followUpCount = inquiry.followUpHistory.length;
+    }
+
     await inquiry.save();
-    await inquiry.populate('branchId', 'name shortCode'); // Populate for frontend consistency
+    await inquiry.populate([
+      { path: "branchId", select: "name shortCode" },
+      { path: "allocatedTo", select: "name" },
+      { path: "interestedCourse", select: "name" }
+    ]);
     res.json(inquiry);
   } else {
     res.status(404);

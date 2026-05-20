@@ -10,8 +10,9 @@ import InquiryForm from '../../../components/transaction/InquiryForm'; // Import
 import InquiryViewModal from '../../../components/transaction/InquiryViewModal';
 import TimePicker12Hour from '../../../components/common/TimePicker12Hour';
 import StudentSearch from '../../../components/StudentSearch';
+import SearchableDropdown from '../../../components/common/SearchableDropdown';
 import {
-    Plus, Search, X, PhoneCall, FileText, Edit, Trash2, Calendar, Eye, RefreshCw
+    Plus, Search, X, PhoneCall, FileText, Edit, Trash2, Calendar, Eye, RefreshCw, Printer
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { formatDate } from '../../../utils/dateUtils';
@@ -57,6 +58,7 @@ const FollowUpModal = ({ inquiry, onClose, onSave }) => {
             status: data.status,
             followUpDetails: finalDetails,
             followUpDate: fDate,
+            newRemarks: data.newRemarks,
         };
 
         // Save the inquiry update first
@@ -138,6 +140,10 @@ const InquiryDSR = () => {
     const [filters, setFilters] = useState({ startDate: '', endDate: new Date().toISOString().split('T')[0], status: '', studentName: '', referenceBy: '', source: 'DSR', dateFilterType: 'followUpDate' });
     const [modal, setModal] = useState({ type: null, data: null });
 
+    const handlePrintList = () => {
+        window.print();
+    };
+
     useEffect(() => { dispatch(fetchInquiries(filters)); dispatch(fetchCourses()); dispatch(fetchEmployees()); dispatch(fetchReferences()); }, [dispatch]);
     useEffect(() => {
         if (isSuccess && message) {
@@ -184,9 +190,16 @@ const InquiryDSR = () => {
         ...(user?.role === 'Super Admin' ? [{ header: 'Branch', render: r => r.branchId?.name || '-' }] : []),
         { header: 'Date', render: r => new Date(r.inquiryDate).toLocaleDateString('en-GB') }, // dd/mm/yyyy format
         { header: 'Student Name', render: r => <span className="font-bold text-gray-700">{r.firstName} {r.middleName ? r.middleName + ' ' : ''}{r.lastName || ''}</span> },
-        { header: 'Contact (Home)', render: r => r.contactHome || '-' },
-        { header: 'Contact (Student)', render: r => r.contactStudent || '-' },
-        { header: 'Contact (Parent)', render: r => r.contactParent || '-' },
+        { 
+            header: 'Contact', 
+            render: r => (
+                <div className="text-[10px] space-y-0.5">
+                    <div><span className="font-bold text-gray-400">G:</span> {r.contactParent || '-'}</div>
+                    <div><span className="font-bold text-gray-400">H:</span> {r.contactHome || '-'}</div>
+                    <div><span className="font-bold text-gray-400">S:</span> {r.contactStudent || '-'}</div>
+                </div>
+            ) 
+        },
         { header: 'Status', render: r => <span className={`px-2 py-0.5 rounded text-xs font-bold ${r.status === 'Open' ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>{r.status}</span> },
         {
             header: 'Next Follow Up', render: r => (
@@ -217,11 +230,55 @@ const InquiryDSR = () => {
 
     return (
         <div className="container mx-auto p-4 max-w-full animate-fadeIn">
+            <style>{`
+                .print-only-header {
+                    display: none !important;
+                }
+                @media print {
+                    body {
+                        visibility: hidden !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .printable-table-container,
+                    .printable-table-container * {
+                        visibility: visible !important;
+                    }
+                    .printable-table-container {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        overflow: visible !important;
+                    }
+                    .print-only-header {
+                        display: block !important;
+                    }
+                    /* Hide the Actions column (last th and td) */
+                    .printable-table-container th:last-child,
+                    .printable-table-container td:last-child {
+                        display: none !important;
+                    }
+                    /* Clean up page breaks */
+                    tr {
+                        page-break-inside: avoid !important;
+                    }
+                }
+            `}</style>
             <div className="flex justify-between mb-4 items-center">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText className="text-purple-600" /> DSR Inquiry Report</h2>
-                <button onClick={() => setModal({ type: 'form' })} className="bg-blue-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-blue-700 font-bold transition-all transform hover:scale-105">
-                    <Plus size={18} /> Add DSR Inquiry
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={handlePrintList} className="bg-green-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-green-700 font-bold transition-all transform hover:scale-105">
+                        <Printer size={18} /> Print List
+                    </button>
+                    <button onClick={() => setModal({ type: 'form' })} className="bg-blue-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-blue-700 font-bold transition-all transform hover:scale-105">
+                        <Plus size={18} /> Add DSR Inquiry
+                    </button>
+                </div>
             </div>
 
             {/* --- Filter Section --- */}
@@ -280,13 +337,13 @@ const InquiryDSR = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-xs text-gray-500 font-semibold mb-1 block">Reference By</label>
-                            <select value={filters.referenceBy} onChange={e => setFilters({ ...filters, referenceBy: e.target.value })} className="w-full border p-2.5 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                <option value="">All References</option>
-                                {activeReferences.map(name => (
-                                    <option key={name} value={name}>{name}</option>
-                                ))}
-                            </select>
+                            <SearchableDropdown 
+                                options={activeReferences}
+                                value={filters.referenceBy}
+                                onSelect={(val) => setFilters({ ...filters, referenceBy: val })}
+                                label="Reference By"
+                                placeholder="Search Reference..."
+                            />
                         </div>
                     </div>
 
@@ -312,23 +369,24 @@ const InquiryDSR = () => {
                 </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-x-auto border">
-                <table className="w-full border-collapse min-w-[1400px]">
+            <div className="bg-white rounded-lg shadow overflow-x-auto border printable-table-container">
+                <div className="print-only-header mb-6 text-center">
+                    <h1 className="text-2xl font-bold text-blue-800 uppercase tracking-wide">DSR Inquiry List</h1>
+                    <p className="text-xs text-gray-500 mt-1">Generated on {new Date().toLocaleDateString('en-GB')} | Total Inquiries: {inquiries?.length || 0}</p>
+                </div>
+                <table className="w-full border-collapse min-w-[1000px]">
                     <thead>
                         <tr className="bg-blue-600 text-white text-left text-xs uppercase tracking-wider">
                             <th className="p-2 border font-semibold w-12">Sr. No.</th>
                             <th className="p-2 border font-semibold">Inquiry Date</th>
                             {user?.role === 'Super Admin' && <th className="p-2 border font-semibold">Branch</th>}
                             <th className="p-2 border font-semibold">Student Name</th>
-                            <th className="p-2 border font-semibold">Contact (Home)</th>
-                            <th className="p-2 border font-semibold">Contact (Student)</th>
-                            <th className="p-2 border font-semibold">Contact (Parent)</th>
+                            <th className="p-2 border font-semibold text-center w-36">Contact</th>
                             <th className="p-2 border font-semibold">Gender</th>
                             <th className="p-2 border font-semibold text-center">Status</th>
                             <th className="p-2 border font-semibold">Followup Date</th>
                             <th className="p-2 border font-semibold">Followup Time</th>
-                            <th className="p-2 border font-semibold">Followup Details</th>
-                            {/* <th className="p-2 border font-semibold w-48">Allocation To</th> */}
+                            <th className="p-2 border font-semibold w-36">Followup Details</th>
                             <th className="p-2 border font-semibold text-center sticky right-0 bg-blue-600 z-10 w-32">Actions</th>
                         </tr>
                     </thead>
@@ -339,9 +397,26 @@ const InquiryDSR = () => {
                                 <td className="p-2 border text-gray-700">{formatDate(inquiry.inquiryDate)}</td>
                                 {user?.role === 'Super Admin' && <td className="p-2 border text-gray-600">{inquiry.branchId?.name || '-'}</td>}
                                 <td className="p-2 border font-bold text-gray-800">{inquiry.firstName} {inquiry.lastName}</td>
-                                <td className="p-2 border text-gray-600">{inquiry.contactHome || ''}</td>
-                                <td className="p-2 border text-gray-600">{inquiry.contactStudent || ''}</td>
-                                <td className="p-2 border text-gray-600">{inquiry.contactParent || ''}</td>
+                                <td className="p-0 border align-top">
+                                    <div className="flex border-b border-gray-200 last:border-b-0">
+                                        <div className="w-6 border-r border-gray-200 p-1 font-bold text-gray-500 bg-gray-50 flex items-center justify-center">G</div>
+                                        <div className="p-1 flex-1 text-gray-700 font-medium text-left px-2 flex items-center justify-start">
+                                            {inquiry.contactParent || '-'}
+                                        </div>
+                                    </div>
+                                    <div className="flex border-b border-gray-200 last:border-b-0">
+                                        <div className="w-6 border-r border-gray-200 p-1 font-bold text-gray-500 bg-gray-50 flex items-center justify-center">H</div>
+                                        <div className="p-1 flex-1 text-gray-700 font-medium text-left px-2 flex items-center justify-start">
+                                            {inquiry.contactHome || '-'}
+                                        </div>
+                                    </div>
+                                    <div className="flex">
+                                        <div className="w-6 border-r border-gray-200 p-1 font-bold text-gray-500 bg-gray-50 flex items-center justify-center">S</div>
+                                        <div className="p-1 flex-1 text-gray-700 font-medium text-left px-2 flex items-center justify-start">
+                                            {inquiry.contactStudent || '-'}
+                                        </div>
+                                    </div>
+                                </td>
                                 <td className="p-2 border text-gray-600">{inquiry.gender || '-'}</td>
                                 <td className="p-2 border text-center">
                                     <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${inquiry.status === 'Open' ? 'bg-green-100 text-green-700 border-green-200' :
@@ -355,22 +430,7 @@ const InquiryDSR = () => {
                                 <td className="p-2 border text-gray-700">
                                     {inquiry.followUpDate ? new Date(inquiry.followUpDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                                 </td>
-                                <td className="p-2 border text-gray-600 truncate max-w-xs" title={inquiry.followUpDetails}>{inquiry.followUpDetails || '-'}</td>
-                                {/* <td className="p-2 border">
-                            <select 
-                                className="w-full border p-1 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                                value={inquiry.allocatedTo?._id || inquiry.allocatedTo || ''}
-                                onChange={(e) => {
-                                    const empId = e.target.value;
-                                    dispatch(updateInquiry({ id: inquiry._id, data: { allocatedTo: empId } }));
-                                }}
-                            >
-                                <option value="">Unallocated</option>
-                                {employees?.filter(e => e.type !== 'Super Admin').map(emp => (
-                                    <option key={emp._id} value={emp._id}>{emp.name}</option>
-                                ))}
-                            </select>
-                        </td> */}
+                                <td className="p-2 border text-gray-600 truncate max-w-xs" title={inquiry.followUpDetails}>{inquiry.followUpDetails ? (inquiry.followUpDetails.length > 14 ? `${inquiry.followUpDetails.substring(0, 14)}...` : inquiry.followUpDetails) : '-'}</td>
                                 <td className="p-2 border text-center sticky right-0 bg-white">
                                     <div className="flex justify-center gap-1">
                                         <button onClick={() => setModal({ type: 'followup', data: inquiry })} className="bg-purple-50 text-purple-600 border border-purple-200 p-1 rounded hover:bg-purple-100 transition" title="Follow Up">
@@ -389,7 +449,7 @@ const InquiryDSR = () => {
                                 </td>
                             </tr>
                         )) : (
-                            <tr><td colSpan="14" className="text-center py-8 text-gray-400">No inquiries found</td></tr>
+                            <tr><td colSpan={user?.role === 'Super Admin' ? 11 : 10} className="text-center py-8 text-gray-400">No inquiries found</td></tr>
                         )}
                     </tbody>
                 </table>

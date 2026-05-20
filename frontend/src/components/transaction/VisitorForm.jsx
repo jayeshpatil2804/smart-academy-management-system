@@ -8,6 +8,42 @@ import visitorService from '../../services/visitorService';
 import { formatInputText } from '../../utils/textFormatter';
 import InquiryViewModal from './InquiryViewModal';
 
+// Time conversion utilities
+const convertTo12Hour = (time24) => {
+    if (!time24) return '';
+    if (time24.includes('AM') || time24.includes('PM')) return time24;
+    
+    const [hourStr, minStr] = time24.split(':');
+    let hour = parseInt(hourStr, 10);
+    const min = minStr;
+    if (isNaN(hour)) return time24;
+    
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    hour = hour ? hour : 12; // 0 should be 12
+    const hourFormatted = hour < 10 ? '0' + hour : hour;
+    return `${hourFormatted}:${min} ${ampm}`;
+};
+
+const convertTo24Hour = (time12) => {
+    if (!time12) return '';
+    if (!time12.includes('AM') && !time12.includes('PM')) {
+        return time12.substring(0, 5);
+    }
+    
+    const [time, modifier] = time12.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (hours === '12') {
+        hours = '00';
+    }
+    if (modifier === 'PM') {
+        hours = parseInt(hours, 10) + 12;
+    }
+    
+    const hoursStr = String(hours).padStart(2, '0');
+    return `${hoursStr}:${minutes}`;
+};
+
 const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) => {
     const dispatch = useDispatch();
     const { references } = useSelector((state) => state.master);
@@ -18,15 +54,18 @@ const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) 
         visitingDate: new Date().toISOString().split('T')[0],
         studentName: '',
         mobileNumber: '',
+        contactParent: '',
+        contactHome: '',
         reference: '',
         referenceContact: '',
         referenceAddress: '',
         course: '',
-        inTime: '',
+        inTime: new Date().toTimeString().substring(0, 5),
         outTime: '',
         attendedBy: '',
         remarks: '',
-        branchId: user?.branchId || ''
+        branchId: user?.branchId || '',
+        inquiryId: ''
     });
 
     // Dropdown Data State
@@ -57,15 +96,18 @@ const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) 
                 visitingDate: initialData.visitingDate ? initialData.visitingDate.split('T')[0] : '',
                 studentName: initialData.studentName || '',
                 mobileNumber: initialData.mobileNumber || '',
+                contactParent: initialData.contactParent || '',
+                contactHome: initialData.contactHome || '',
                 reference: initialData.reference || '',
                 referenceContact: initialData.referenceContact || '',
                 referenceAddress: initialData.referenceAddress || '',
                 course: initialData.course?._id || initialData.course || '',
-                inTime: initialData.inTime || '',
-                outTime: initialData.outTime || '',
+                inTime: convertTo24Hour(initialData.inTime),
+                outTime: convertTo24Hour(initialData.outTime),
                 attendedBy: initialData.attendedBy?._id || initialData.attendedBy || '',
                 remarks: initialData.remarks || '',
-                branchId: initialData.branchId?._id || initialData.branchId || user?.branchId || ''
+                branchId: initialData.branchId?._id || initialData.branchId || user?.branchId || '',
+                inquiryId: initialData.inquiryId?._id || initialData.inquiryId || ''
             });
         }
     }, [initialData, user]);
@@ -101,15 +143,18 @@ const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) 
             visitingDate: new Date().toISOString().split('T')[0],
             studentName: '',
             mobileNumber: '',
+            contactParent: '',
+            contactHome: '',
             reference: '',
             referenceContact: '',
             referenceAddress: '',
             course: '',
-            inTime: '',
+            inTime: new Date().toTimeString().substring(0, 5),
             outTime: '',
             attendedBy: '',
             remarks: '',
-            branchId: user?.branchId || ''
+            branchId: user?.branchId || '',
+            inquiryId: ''
         });
     };
 
@@ -147,13 +192,20 @@ const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) 
         e.preventDefault();
         setIsSubmitting(true);
         try {
+            // Convert time fields to 12-hour format before submitting to DB
+            const submissionData = {
+                ...formData,
+                inTime: convertTo12Hour(formData.inTime),
+                outTime: convertTo12Hour(formData.outTime)
+            };
+
             if (initialData?._id) {
                 // Update existing visitor
-                await visitorService.updateVisitor(initialData._id, formData);
+                await visitorService.updateVisitor(initialData._id, submissionData);
                 toast.success('Visitor updated successfully!');
             } else {
                 // Create new visitor
-                await visitorService.createVisitor(formData);
+                await visitorService.createVisitor(submissionData);
                 toast.success('Visitor saved successfully!');
             }
             
@@ -203,9 +255,12 @@ const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) 
         setFormData(prev => ({
             ...prev,
             studentName: fullName,
-            mobileNumber: inquiry.contactStudent || inquiry.contactParent || inquiry.mobile || '',
+            mobileNumber: inquiry.contactStudent || inquiry.mobile || '',
+            contactParent: inquiry.contactParent || '',
+            contactHome: inquiry.contactHome || '',
             reference: inquiry.source === 'Reference' ? (inquiry.referenceBy || '') : inquiry.source,
             course: matchedCourse ? matchedCourse._id : '',
+            inquiryId: inquiry._id
         }));
         
         toast.info("Details filled from Inquiry record");
@@ -268,16 +323,41 @@ const VisitorForm = ({ initialData = null, onSuccess = null, onCancel = null }) 
                                 )}
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number *</label>
-                            <input 
-                                type="tel"
-                                name="mobileNumber"
-                                value={formData.mobileNumber}
-                                onChange={handleInputChange}
-                                required
-                                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
-                            />
+                        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Student Contact *</label>
+                                <input 
+                                    type="tel"
+                                    name="mobileNumber"
+                                    value={formData.mobileNumber}
+                                    onChange={handleInputChange}
+                                    required
+                                    className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="Student mobile"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Parent Contact</label>
+                                <input 
+                                    type="tel"
+                                    name="contactParent"
+                                    value={formData.contactParent}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="Parent mobile"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Home Contact</label>
+                                <input 
+                                    type="tel"
+                                    name="contactHome"
+                                    value={formData.contactHome}
+                                    onChange={handleInputChange}
+                                    className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="Home contact"
+                                />
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>

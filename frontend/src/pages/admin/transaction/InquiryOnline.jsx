@@ -8,7 +8,7 @@ import InquiryForm from '../../../components/transaction/InquiryForm';
 import StudentSearch from '../../../components/StudentSearch';
 import InquiryViewModal from '../../../components/transaction/InquiryViewModal';
 import SmartTable from '../../../components/ui/SmartTable';
-import { Search, RefreshCw, PhoneCall, Globe, X, Edit, Trash2, Eye, Calendar } from 'lucide-react';
+import { Search, RefreshCw, PhoneCall, Globe, X, Edit, Trash2, Eye, Calendar, Printer } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useForm } from 'react-hook-form';
 import TimePicker12Hour from '../../../components/common/TimePicker12Hour';
@@ -59,6 +59,7 @@ const FollowUpForm = ({ inquiry, onClose, onSave }) => {
             status: data.status,
             followUpDetails: finalDetails,
             followUpDate: fDate,
+            newRemarks: data.newRemarks,
         };
 
         // Save the inquiry update first
@@ -146,6 +147,10 @@ const InquiryOnline = () => {
         source: 'Online' // Locked to Online
     });
 
+    const handlePrintList = () => {
+        window.print();
+    };
+
     useEffect(() => {
         dispatch(fetchInquiries(filters));
     }, [dispatch]);
@@ -216,9 +221,16 @@ const InquiryOnline = () => {
         ...(user?.role === 'Super Admin' ? [{ header: 'Branch', render: r => r.branchId?.name || '-' }] : []),
         { header: 'Date', render: (row) => formatDate(row.inquiryDate) },
         { header: 'Student Name', render: r => <span className="font-bold text-gray-700">{r.firstName} {r.middleName ? r.middleName + ' ' : ''}{r.lastName || ''}</span> },
-        { header: 'Contact (Home)', render: r => r.contactHome || '-' },
-        { header: 'Contact (Student)', render: r => r.contactStudent || '-' },
-        { header: 'Contact (Parent)', render: r => r.contactParent || '-' },
+        { 
+            header: 'Contact', 
+            render: r => (
+                <div className="text-[10px] space-y-0.5">
+                    <div><span className="font-bold text-gray-400">G:</span> {r.contactParent || '-'}</div>
+                    <div><span className="font-bold text-gray-400">H:</span> {r.contactHome || '-'}</div>
+                    <div><span className="font-bold text-gray-400">S:</span> {r.contactStudent || '-'}</div>
+                </div>
+            ) 
+        },
         { header: 'Gender', accessor: 'gender' },
         { header: 'Status', render: r => <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${r.status === 'Open' ? 'bg-green-100 text-green-700' : r.status === 'Recall' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'}`}>{r.status}</span> },
         {
@@ -231,7 +243,6 @@ const InquiryOnline = () => {
                 </div>
             )
         },
-        { header: 'Allocated To', render: r => r.allocatedTo?.name || 'Unallocated' },
         {
             header: 'Action', render: r => (
                 <div className="flex gap-2">
@@ -251,14 +262,58 @@ const InquiryOnline = () => {
 
     return (
         <div className="container mx-auto p-4 max-w-full animate-fadeIn">
+            <style>{`
+                .print-only-header {
+                    display: none !important;
+                }
+                @media print {
+                    body {
+                        visibility: hidden !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .printable-table-container,
+                    .printable-table-container * {
+                        visibility: visible !important;
+                    }
+                    .printable-table-container {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        overflow: visible !important;
+                    }
+                    .print-only-header {
+                        display: block !important;
+                    }
+                    /* Hide the Actions column (last th and td) */
+                    .printable-table-container th:last-child,
+                    .printable-table-container td:last-child {
+                        display: none !important;
+                    }
+                    /* Clean up page breaks */
+                    tr {
+                        page-break-inside: avoid !important;
+                    }
+                }
+            `}</style>
 
             {/* Page Header */}
-            <div className="flex items-center gap-3 mb-6 border-b pb-4">
-                <div className="bg-blue-100 p-2 rounded-lg"><Globe className="text-blue-600" size={24} /></div>
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Online Inquiries</h2>
-                    <p className="text-xs text-gray-500">Manage inquiries received from Website or Social Media</p>
+            <div className="flex justify-between items-center mb-6 border-b pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 p-2 rounded-lg"><Globe className="text-blue-600" size={24} /></div>
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800">Online Inquiries</h2>
+                        <p className="text-xs text-gray-500">Manage inquiries received from Website or Social Media</p>
+                    </div>
                 </div>
+                <button onClick={handlePrintList} className="bg-green-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-green-700 font-bold transition-all transform hover:scale-105">
+                    <Printer size={18} /> Print List
+                </button>
             </div>
 
             {/* --- FILTER SECTION --- */}
@@ -341,23 +396,24 @@ const InquiryOnline = () => {
             </div>
 
             {/* --- TABLE --- */}
-            <div className="bg-white rounded-lg shadow overflow-x-auto border">
-                <table className="w-full border-collapse min-w-[1400px]">
+            <div className="bg-white rounded-lg shadow overflow-x-auto border printable-table-container">
+                <div className="print-only-header mb-6 text-center">
+                    <h1 className="text-2xl font-bold text-blue-800 uppercase tracking-wide">Online Inquiry List</h1>
+                    <p className="text-xs text-gray-500 mt-1">Generated on {new Date().toLocaleDateString('en-GB')} | Total Inquiries: {inquiries?.length || 0}</p>
+                </div>
+                <table className="w-full border-collapse min-w-[1000px]">
                     <thead>
                         <tr className="bg-blue-600 text-white text-left text-xs uppercase tracking-wider">
                             <th className="p-2 border font-semibold w-12">Sr. No.</th>
                             <th className="p-2 border font-semibold">Inquiry Date</th>
                             {user?.role === 'Super Admin' && <th className="p-2 border font-semibold">Branch</th>}
                             <th className="p-2 border font-semibold">Student Name</th>
-                            <th className="p-2 border font-semibold">Contact (Home)</th>
-                            <th className="p-2 border font-semibold">Contact (Student)</th>
-                            <th className="p-2 border font-semibold">Contact (Parent)</th>
+                            <th className="p-2 border font-semibold text-center w-36">Contact</th>
                             <th className="p-2 border font-semibold">Gender</th>
                             <th className="p-2 border font-semibold text-center">Status</th>
                             <th className="p-2 border font-semibold">Followup Date</th>
                             <th className="p-2 border font-semibold">Followup Time</th>
-                            <th className="p-2 border font-semibold">Followup Details</th>
-                            {/* <th className="p-2 border font-semibold w-48">Allocation To</th> */}
+                            <th className="p-2 border font-semibold w-36">Followup Details</th>
                             <th className="p-2 border font-semibold text-center sticky right-0 bg-blue-600 z-10 w-32">Actions</th>
                         </tr>
                     </thead>
@@ -368,9 +424,26 @@ const InquiryOnline = () => {
                                 <td className="p-2 border text-gray-700">{formatDate(inquiry.inquiryDate)}</td>
                                 {user?.role === 'Super Admin' && <td className="p-2 border text-gray-600">{inquiry.branchId?.name || '-'}</td>}
                                 <td className="p-2 border font-bold text-gray-800">{inquiry.firstName} {inquiry.lastName}</td>
-                                <td className="p-2 border text-gray-600">{inquiry.contactHome || '-'}</td>
-                                <td className="p-2 border text-gray-600">{inquiry.contactStudent || '-'}</td>
-                                <td className="p-2 border text-gray-600">{inquiry.contactParent || '-'}</td>
+                                <td className="p-0 border align-top">
+                                    <div className="flex border-b border-gray-200 last:border-b-0">
+                                        <div className="w-6 border-r border-gray-200 p-1 font-bold text-gray-500 bg-gray-50 flex items-center justify-center">G</div>
+                                        <div className="p-1 flex-1 text-gray-700 font-medium text-left px-2 flex items-center justify-start">
+                                            {inquiry.contactParent || '-'}
+                                        </div>
+                                    </div>
+                                    <div className="flex border-b border-gray-200 last:border-b-0">
+                                        <div className="w-6 border-r border-gray-200 p-1 font-bold text-gray-500 bg-gray-50 flex items-center justify-center">H</div>
+                                        <div className="p-1 flex-1 text-gray-700 font-medium text-left px-2 flex items-center justify-start">
+                                            {inquiry.contactHome || '-'}
+                                        </div>
+                                    </div>
+                                    <div className="flex">
+                                        <div className="w-6 border-r border-gray-200 p-1 font-bold text-gray-500 bg-gray-50 flex items-center justify-center">S</div>
+                                        <div className="p-1 flex-1 text-gray-700 font-medium text-left px-2 flex items-center justify-start">
+                                            {inquiry.contactStudent || '-'}
+                                        </div>
+                                    </div>
+                                </td>
                                 <td className="p-2 border text-gray-600">{inquiry.gender || '-'}</td>
                                 <td className="p-2 border text-center">
                                     <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${inquiry.status === 'Open' ? 'bg-green-100 text-green-700 border-green-200' :
@@ -384,22 +457,7 @@ const InquiryOnline = () => {
                                 <td className="p-2 border text-gray-700">
                                     {inquiry.followUpDate ? new Date(inquiry.followUpDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                                 </td>
-                                <td className="p-2 border text-gray-600 truncate max-w-xs" title={inquiry.followUpDetails}>{inquiry.followUpDetails || '-'}</td>
-                                {/* <td className="p-2 border">
-                            <select 
-                                className="w-full border p-1 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                                value={inquiry.allocatedTo?._id || inquiry.allocatedTo || ''}
-                                onChange={(e) => {
-                                    const empId = e.target.value;
-                                    dispatch(updateInquiry({ id: inquiry._id, data: { allocatedTo: empId } }));
-                                }}
-                            >
-                                <option value="">Unallocated</option>
-                                {employees?.filter(e => e.type !== 'Super Admin').map(emp => (
-                                    <option key={emp._id} value={emp._id}>{emp.name}</option>
-                                ))}
-                            </select>
-                        </td> */}
+                                <td className="p-2 border text-gray-600 truncate max-w-xs" title={inquiry.followUpDetails}>{inquiry.followUpDetails ? (inquiry.followUpDetails.length > 14 ? `${inquiry.followUpDetails.substring(0, 14)}...` : inquiry.followUpDetails) : '-'}</td>
                                 <td className="p-2 border text-center sticky right-0 bg-white">
                                     <div className="flex justify-center gap-1">
                                         <button onClick={() => setShowFollowUpModal(inquiry)} className="bg-purple-50 text-purple-600 border border-purple-200 p-1 rounded hover:bg-purple-100 transition" title="Follow Up">
@@ -418,7 +476,7 @@ const InquiryOnline = () => {
                                 </td>
                             </tr>
                         )) : (
-                            <tr><td colSpan="14" className="text-center py-8 text-gray-400">No inquiries found</td></tr>
+                            <tr><td colSpan={user?.role === 'Super Admin' ? 11 : 10} className="text-center py-8 text-gray-400">No inquiries found</td></tr>
                         )}
                     </tbody>
                 </table>
