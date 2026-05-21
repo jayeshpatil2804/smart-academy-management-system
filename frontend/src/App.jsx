@@ -35,6 +35,7 @@ const FeedbackPage = lazy(() => import("./pages/user/FeedbackPage"));
 const OnlineAdmission = lazy(() => import("./pages/user/OnlineAdmission"));
 const TermsAndConditions = lazy(() => import("./pages/user/TermsAndConditions"));
 const VerifyStudent = lazy(() => import("./pages/user/VerifyStudent"));
+const PublicResultView = lazy(() => import("./pages/user/PublicResultView"));
 
 // Student Pages
 const StudentHome = lazy(() => import("./pages/student/StudentHome"));
@@ -761,6 +762,7 @@ function App() {
                 <Route path="/online-admission" element={<OnlineAdmission />} />
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
                 <Route path="/verify-student" element={<VerifyStudent />} />
+                <Route path="/result" element={<PublicResultView />} />
               </Route>
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

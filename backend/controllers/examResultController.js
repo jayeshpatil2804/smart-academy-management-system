@@ -228,4 +228,78 @@ const getNextResultNumbers = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { getExamResults, createExamResult, updateExamResult, deleteExamResult, getExamResultById, getNextResultNumbers };
+// @desc    Verify Exam Result Publicly
+// @route   POST /api/master/exam-result/verify
+const verifyExamResult = asyncHandler(async (req, res) => {
+    const { email, enrollmentNo } = req.body;
+
+    if (!email || !enrollmentNo) {
+        res.status(400);
+        throw new Error('Email and Enrollment number are required');
+    }
+
+    // Find student with both Email and Enrollment number
+    const student = await Student.findOne({
+        email: { $regex: new RegExp(`^${email.trim()}$`, 'i') },
+        enrollmentNo: { $regex: new RegExp(`^${enrollmentNo.trim()}$`, 'i') },
+        isDeleted: false
+    }).lean();
+
+    if (!student) {
+        res.status(404);
+        throw new Error('No student found with the provided Email and Enrollment number');
+    }
+
+    // Find exam result for this student
+    // User said: "those who student can be exam done and mrksheet complete"
+    // We'll check for isActive results which typically means they are finalized
+    const results = await ExamResult.find({
+        student: student._id,
+        isDeleted: false,
+        isActive: true
+    })
+    .populate('course', 'name duration durationType shortName')
+    .populate('exam', 'examName')
+    .populate('subjectMarks.subject', 'name')
+    .sort({ createdAt: -1 })
+    .lean();
+
+    if (!results || results.length === 0) {
+        res.status(404);
+        throw new Error('No finalized exam results found for this student');
+    }
+
+    // Return the results in a simplified format for public view
+    const publicResults = results.map(res => ({
+        _id: res._id,
+        examName: res.exam?.examName,
+        courseName: res.course?.name,
+        somNumber: res.somNumber,
+        csrNumber: res.csrNumber,
+        certificateNumber: res.certificateNumber,
+        grade: res.grade,
+        percentage: res.percentage,
+        marksObtained: res.marksObtained,
+        totalMarks: res.totalMarks,
+        issueDate: res.createdAt,
+        subjects: res.subjectMarks.map(sm => ({
+            name: sm.subject?.name,
+            theory: sm.theory,
+            practical: sm.practical,
+            total: sm.total
+        }))
+    }));
+
+    res.json({
+        student: {
+            firstName: student.firstName,
+            middleName: student.middleName,
+            lastName: student.lastName,
+            regNo: student.regNo,
+            enrollmentNo: student.enrollmentNo
+        },
+        results: publicResults
+    });
+});
+
+module.exports = { getExamResults, createExamResult, updateExamResult, deleteExamResult, getExamResultById, getNextResultNumbers, verifyExamResult };
