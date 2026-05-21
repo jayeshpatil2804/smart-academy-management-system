@@ -21,21 +21,53 @@ app.use(helmet());
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "https://smartinstituteonline.com",
   "https://www.smartinstituteonline.com",
-  "https://smar.smartinstituteonline.com" // Allow itself
+  "https://smar.smartinstituteonline.com",
+  "https://api.smartinstituteonline.com",
 ];
+
+// Helper to check if origin is allowed (supports exact match and subdomain patterns)
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+
+  // Exact match
+  if (allowedOrigins.indexOf(origin) !== -1) return true;
+
+  // Normalize by removing trailing slash
+  const normalizedOrigin = origin.replace(/\/+$/, "");
+  if (allowedOrigins.indexOf(normalizedOrigin) !== -1) return true;
+
+  // Pattern match: smartinstituteonline.com and its subdomains
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    if (
+      hostname === "smartinstituteonline.com" ||
+      hostname.endsWith(".smartinstituteonline.com") ||
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost")
+    ) {
+      return true;
+    }
+  } catch (e) {
+    // Invalid URL, fall through to rejection
+  }
+
+  return false;
+}
+
 // CORS Middleware (Must be before Rate Limiter for 429s to work in browser)
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    const allowed = isOriginAllowed(origin);
+    if (allowed) {
       callback(null, true);
     } else {
       console.log("Blocked by CORS:", origin);
-      callback(new Error('Not allowed by CORS'));
+      // Use false instead of an Error to gracefully deny without sending 503
+      callback(null, false);
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -60,7 +92,6 @@ app.use(
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
-// CORS was here - moved up
 
 // Static Folder for Uploads
 app.use("/uploads", express.static("uploads"));
@@ -82,7 +113,14 @@ app.use("/api/transaction/attendance", require("./routes/attendanceRoutes"));
 app.use("/api/branches", require("./routes/branchRoutes"));
 app.use("/api/cloudinary", require("./routes/cloudinaryRoutes"));
 app.use("/api/materials", require("./routes/materialRoutes")); // Material Routes
+app.use("/api/topper-results", require("./routes/topperResultRoutes")); // Topper Results Routes
 app.use("/api/student-portal", require("./routes/studentPortalRoutes")); // New Student Portal Routes
+app.use("/api/blogs", require("./routes/blogRoutes")); // Blog Routes
+app.use("/api/banners", require("./routes/bannerRoutes")); // Banner Routes
+app.use("/api/home-sections", require("./routes/homeSectionRoutes")); // Home Sections
+app.use("/api/galleries", require("./routes/galleryRoutes")); // Gallery Routes
+app.use("/api/feedback", require("./routes/feedbackRoutes")); // Feedback Routes
+app.use("/api/sms", require("./routes/smsRoutes")); // SMS Routes
 
 // Error Handler
 app.use(errorHandler);

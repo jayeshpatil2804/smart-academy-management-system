@@ -1,10 +1,11 @@
 const Visitor = require('../models/Visitor');
 const User = require('../models/User'); // For ensuring attendedBy exists if needed
+const Inquiry = require('../models/Inquiry');
 
 // Create a new visitor
 exports.createVisitor = async (req, res) => {
     try {
-        let { visitingDate, studentName, mobileNumber, reference, referenceContact, referenceAddress, course, inTime, outTime, attendedBy, remarks, branchId } = req.body;
+        let { visitingDate, studentName, mobileNumber, contactParent, contactHome, reference, referenceContact, referenceAddress, course, inTime, outTime, attendedBy, remarks, branchId, inquiryId } = req.body;
 
         // Auto-assign branch for non-Super Admin
         if (req.user.role !== 'Super Admin') {
@@ -15,6 +16,8 @@ exports.createVisitor = async (req, res) => {
             visitingDate,
             studentName,
             mobileNumber,
+            contactParent,
+            contactHome,
             reference,
             referenceContact,
             referenceAddress,
@@ -23,10 +26,16 @@ exports.createVisitor = async (req, res) => {
             outTime,
             attendedBy,
             remarks,
-            branchId
+            branchId,
+            inquiryId
         });
 
         await newVisitor.save();
+
+        if (inquiryId) {
+            await Inquiry.findByIdAndUpdate(inquiryId, { isDeleted: true, visitorId: newVisitor._id });
+        }
+
         res.status(201).json({ message: 'Visitor created successfully', visitor: newVisitor });
     } catch (error) {
         console.error("Error creating visitor:", error);
@@ -64,6 +73,8 @@ exports.getAllVisitors = async (req, res) => {
             query.$or = [
                 { studentName: { $regex: search, $options: 'i' } },
                 { mobileNumber: { $regex: search, $options: 'i' } },
+                { contactParent: { $regex: search, $options: 'i' } },
+                { contactHome: { $regex: search, $options: 'i' } },
                 { reference: { $regex: search, $options: 'i' } }
             ];
         }
@@ -72,6 +83,7 @@ exports.getAllVisitors = async (req, res) => {
             .populate('course', 'name') 
             .populate('attendedBy', 'name') // Employee model has name
             .populate('branchId', 'name')
+            .populate('inquiryId')
             .sort({ visitingDate: -1, createdAt: -1 });
 
         if (limit) {
@@ -91,7 +103,8 @@ exports.getVisitorById = async (req, res) => {
     try {
         const visitor = await Visitor.findById(req.params.id)
             .populate('course', 'name')
-            .populate('attendedBy', 'name');
+            .populate('attendedBy', 'name')
+            .populate('inquiryId');
             
         if (!visitor || visitor.isDeleted) {
             return res.status(404).json({ message: 'Visitor not found' });
@@ -106,7 +119,7 @@ exports.getVisitorById = async (req, res) => {
 // Update visitor
 exports.updateVisitor = async (req, res) => {
     try {
-        let { visitingDate, studentName, mobileNumber, reference, referenceContact, referenceAddress, course, inTime, outTime, attendedBy, remarks, branchId } = req.body;
+        let { visitingDate, studentName, mobileNumber, contactParent, contactHome, reference, referenceContact, referenceAddress, course, inTime, outTime, attendedBy, remarks, branchId, inquiryId } = req.body;
         
         // Note: Usually we don't update branchId but if Super Admin wants to, they can.
         // If not Super Admin, we might want to prevent changing branchId, but keeping it simple for now or enforcing it stays same.
@@ -124,6 +137,8 @@ exports.updateVisitor = async (req, res) => {
                 visitingDate,
                 studentName,
                 mobileNumber,
+                contactParent,
+                contactHome,
                 reference,
                 referenceContact,
                 referenceAddress,
@@ -132,13 +147,18 @@ exports.updateVisitor = async (req, res) => {
                 outTime,
                 attendedBy,
                 remarks,
-                branchId
+                branchId,
+                inquiryId
             },
             { new: true }
         );
 
         if (!updatedVisitor) {
             return res.status(404).json({ message: 'Visitor not found' });
+        }
+
+        if (inquiryId) {
+            await Inquiry.findByIdAndUpdate(inquiryId, { isDeleted: true, visitorId: updatedVisitor._id });
         }
 
         res.status(200).json({ message: 'Visitor updated successfully', visitor: updatedVisitor });

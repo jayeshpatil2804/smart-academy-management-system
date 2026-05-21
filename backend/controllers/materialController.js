@@ -30,17 +30,10 @@ const getMaterials = asyncHandler(async (req, res) => {
     // Search By (Subject Name or Title)
     if (searchBy && value) {
         if (searchBy === 'subject') {
-            // This requires a populate query or aggregation, simplified by fetching first or ensuring subject population
-            // For now, simpler approach: we populate subject and filter in memory if needed, OR use aggregation
-            // Better approach: use regex on title, but for subject we need to find subject IDs first
-            // Let's assume searchBy 'title' is direct. 'subject' is trickier without aggregation.
-            // We will handle 'title' directly. For subject, we might need a workaround or aggregation.
-            // Let's stick to simple text search for now if value is provided.
              if (searchBy === 'title') {
                 query.title = { $regex: value, $options: 'i' };
             }
         } else if (value) {
-             // Default search if no specific 'searchBy' or general search
              query.title = { $regex: value, $options: 'i' };
         }
     }
@@ -67,22 +60,45 @@ const getMaterials = asyncHandler(async (req, res) => {
     res.json(materials);
 });
 
+// @desc    Download material document
+// @route   GET /api/materials/download/:id
+// @access  Public
+const downloadMaterial = asyncHandler(async (req, res) => {
+    const material = await Material.findById(req.params.id);
+    if (!material || !material.document) {
+        res.status(404); throw new Error('Document not found');
+    }
+
+    const filePath = path.resolve(material.document);
+    if (!fs.existsSync(filePath)) {
+        res.status(404); throw new Error('File not found on server');
+    }
+
+    const ext = path.extname(material.document);
+    const safeTitle = material.title.replace(/[^a-zA-Z0-9]/g, "_");
+    const downloadFileName = `${safeTitle}${ext}`;
+
+    res.download(filePath, downloadFileName);
+});
+
 // @desc    Create new material
 // @route   POST /api/materials
 // @access  Private/Admin
 const createMaterial = asyncHandler(async (req, res) => {
     const { subject, title, type, description, isActive } = req.body;
+    const documentPath = req.file ? req.file.path.replace(/\\/g, "/") : null;
 
     const material = await Material.create({
         subject,
         title,
         type,
-        document: req.file ? req.file.path : null,
+        document: documentPath,
         description,
         isActive: isActive === 'true' || isActive === true
     });
 
-    res.status(201).json(material);
+    const populatedMaterial = await Material.findById(material._id).populate('subject', 'name');
+    res.status(201).json(populatedMaterial);
 });
 
 // @desc    Update material
@@ -98,30 +114,24 @@ const updateMaterial = asyncHandler(async (req, res) => {
 
     const { subject, title, type, description, isActive } = req.body;
 
-    material.subject = subject || material.subject;
-    material.title = title || material.title;
-    material.type = type || material.type;
-    material.description = description || material.description;
-    // Handle boolean toggle explicitly if passed
-    if (isActive !== undefined) material.isActive = isActive;
+    if (subject) material.subject = subject;
+    if (title) material.title = title;
+    if (type) material.type = type;
+    if (description !== undefined) material.description = description;
+    if (isActive !== undefined) material.isActive = (isActive === 'true' || isActive === true);
 
     if (req.file) {
-        // Delete old file if exists
         if (material.document && fs.existsSync(material.document)) {
-            // Check if it's a local file (starts with uploads)
             if (material.document.startsWith('uploads')) {
-                 try {
-                    fs.unlinkSync(material.document);
-                } catch (err) {
-                    console.error("Error deleting old file:", err);
-                }
+                 try { fs.unlinkSync(material.document); } catch (err) {}
             }
         }
-        material.document = req.file.path;
+        material.document = req.file.path.replace(/\\/g, "/");
     }
 
     const updatedMaterial = await material.save();
-    res.json(updatedMaterial);
+    const populatedUpdatedMaterial = await Material.findById(updatedMaterial._id).populate('subject', 'name');
+    res.json(populatedUpdatedMaterial);
 });
 
 // @desc    Delete material
@@ -135,14 +145,9 @@ const deleteMaterial = asyncHandler(async (req, res) => {
         throw new Error('Material not found');
     }
 
-    // Delete file
     if (material.document && fs.existsSync(material.document)) {
          if (material.document.startsWith('uploads')) {
-            try {
-                fs.unlinkSync(material.document);
-            } catch (err) {
-                console.error("Error deleting file:", err);
-            }
+            try { fs.unlinkSync(material.document); } catch (err) {}
         }
     }
 
@@ -152,6 +157,7 @@ const deleteMaterial = asyncHandler(async (req, res) => {
 
 module.exports = {
     getMaterials,
+    downloadMaterial,
     createMaterial,
     updateMaterial,
     deleteMaterial

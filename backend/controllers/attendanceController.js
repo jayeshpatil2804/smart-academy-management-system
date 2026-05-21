@@ -175,7 +175,7 @@ exports.saveStudentAttendance = async (req, res) => {
                     
                     if (parentMobile) {
                         const message = `Dear, ${studentName} is Absent in class on today ${date} for ${startTime}-${endTime}, Batch Time-${batchName}. Regards, Smart Institute`;
-                         await sendSMS(parentMobile, message);
+                         await sendSMS(parentMobile, message, 'Attendance');
                     }
                 }
             }

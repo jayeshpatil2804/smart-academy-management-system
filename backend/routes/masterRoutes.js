@@ -8,11 +8,12 @@ const {
     createEmployee, getEmployees,
     getSubjects, createSubject, updateSubject, deleteSubject,
     getReferences, createReference,
-    getEducations, createEducation
+    getEducations, createEducation,
+    getExams, createExam
 } = require('../controllers/masterController');
 const { getExamRequests, cancelExamRequest, createExamRequest, getPendingExams } = require('../controllers/examController');
 const { getExamSchedules, createExamSchedule, updateExamSchedule, deleteExamSchedule, getExamScheduleDetails } = require('../controllers/examScheduleController');
-const { getExamResults, createExamResult, updateExamResult } = require('../controllers/examResultController');
+const { getExamResults, createExamResult, updateExamResult, deleteExamResult, getExamResultById, getNextResultNumbers, verifyExamResult } = require('../controllers/examResultController');
 const { createQuestion, getQuestions, updateQuestion, deleteQuestion } = require('../controllers/freeLearningController');
 const locationRoutes = require('./locationRoutes');
 
@@ -38,7 +39,7 @@ router.route('/batch/:id')
 
 // --- Subject Routes ---
 router.route('/subject')
-    .get(protect, checkPermission('Subject', 'view'), getSubjects)
+    .get(getSubjects) // Public/General Access for dropdowns
     .post(protect, checkPermission('Subject', 'add'), createSubject);
 
 router.route('/subject/:id')
@@ -59,6 +60,11 @@ router.route('/reference')
 router.route('/education')
     .get(getEducations) // Public Access
     .post(protect, createEducation);
+
+// --- Exam Name Routes ---
+router.route('/exam-name')
+    .get(protect, getExams)
+    .post(protect, createExam);
     
 // --- Exam Request Routes ---
 router.route('/exam-request')
@@ -80,9 +86,16 @@ router.route('/exam-schedule/:id')
 router.get('/exam-schedule/:id/details', protect, getExamScheduleDetails);
 
 // --- Exam Results ---
+router.post('/exam-result/verify', verifyExamResult); // Public Access
+router.get('/exam-result/next-numbers', protect, getNextResultNumbers);
 router.route('/exam-result')
     .get(protect, getExamResults) 
     .post(protect, createExamResult); 
+
+router.route('/exam-result/:id')
+    .get(protect, getExamResultById)
+    .put(protect, updateExamResult)
+    .delete(protect, deleteExamResult);
 
 // --- Free Learning Routes ---
 router.route('/free-learning')

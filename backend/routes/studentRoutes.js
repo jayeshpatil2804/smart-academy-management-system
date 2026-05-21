@@ -13,8 +13,21 @@ const {
     confirmStudentRegistration,
     resetStudentLogin,
     cancelStudent,
-    getNextRegNo
+    reactivateStudent,
+    getNextRegNo,
+    getExamPendingStudents,
+    getUniqueReferences,
+    verifyAdmissionStatus
 } = require('../controllers/studentController');
+
+router.route('/exam-pending')
+    .get(protect, checkPermission('Student', 'view'), getExamPendingStudents);
+
+router.route('/verify-admission')
+    .post(verifyAdmissionStatus);
+
+router.route('/unique-references')
+    .get(protect, checkPermission('Student', 'view'), getUniqueReferences);
 
 router.route('/')
     .get(protect, checkPermission('Student', 'view'), getStudents)
@@ -41,5 +54,8 @@ router.route('/:id/reset-login')
 
 router.route('/:id/cancel')
     .put(protect, checkPermission('Student', 'edit'), cancelStudent);
+
+router.route('/:id/reactivate')
+    .put(protect, checkPermission('Student', 'edit'), reactivateStudent);
 
 module.exports = router;

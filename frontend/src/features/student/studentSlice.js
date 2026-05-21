@@ -179,10 +179,55 @@ export const cancelStudent = createAsyncThunk(
   }
 );
 
+export const reactivateStudent = createAsyncThunk(
+  "students/reactivate",
+  async (id, thunkAPI) => {
+    try {
+      const response = await axios.put(`${API_URL}${id}/reactivate`);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || error.message
+      );
+    }
+  }
+);
+
+export const fetchExamPendingStudents = createAsyncThunk(
+  "students/fetchExamPending",
+  async (params, thunkAPI) => {
+    try {
+      const response = await axios.get(`${API_URL}exam-pending`, { params });
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || error.message
+      );
+    }
+  }
+);
+
+export const fetchUniqueReferences = createAsyncThunk(
+  "students/fetchUniqueReferences",
+  async (_, thunkAPI) => {
+    try {
+      const response = await axios.get(`${API_URL}unique-references`);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || error.message
+      );
+    }
+  }
+);
+
 const studentSlice = createSlice({
   name: "students",
   initialState: {
     students: [],
+    uniqueReferences: [],
+    examPendingStudents: [],
+    examPendingPagination: { page: 1, pages: 1, count: 0 },
     currentStudent: null,
     pagination: { page: 1, pages: 1, count: 0 },
     isLoading: false,
@@ -213,6 +258,9 @@ const studentSlice = createSlice({
       .addCase(fetchStudents.rejected, (state, action) => {
         state.isLoading = false;
         state.students = [];
+      })
+      .addCase(fetchUniqueReferences.fulfilled, (state, action) => {
+        state.uniqueReferences = action.payload;
       })
       .addCase(fetchStudentById.pending, (state) => {
         state.isLoading = true;
@@ -307,6 +355,39 @@ const studentSlice = createSlice({
         state.isLoading = false;
         state.isSuccess = false;
         state.message = action.payload;
+      })
+      .addCase(reactivateStudent.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(reactivateStudent.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+        state.message = "Student Admission Reactivated Successfully";
+        const student = state.students.find((s) => s._id === action.payload._id);
+        if (student) {
+          student.isCancelled = false;
+        }
+      })
+      .addCase(reactivateStudent.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = false;
+        state.message = action.payload;
+      })
+      .addCase(fetchExamPendingStudents.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(fetchExamPendingStudents.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.examPendingStudents = action.payload.students || [];
+        state.examPendingPagination = {
+          page: action.payload.page || 1,
+          pages: action.payload.pages || 1,
+          count: action.payload.count || 0,
+        };
+      })
+      .addCase(fetchExamPendingStudents.rejected, (state, action) => {
+        state.isLoading = false;
+        state.examPendingStudents = [];
       });
   },
 });

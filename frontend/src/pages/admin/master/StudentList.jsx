@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchStudents, toggleActiveStatus, resetStudentLogin, resetStatus, deleteStudent } from '../../../features/student/studentSlice';
+import { fetchStudents, toggleActiveStatus, resetStudentLogin, resetStatus, deleteStudent, fetchUniqueReferences } from '../../../features/student/studentSlice';
 import { fetchCourses, fetchBatches, fetchBranches } from '../../../features/master/masterSlice';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Edit, Printer, FileText, CheckSquare, Square, Search, RefreshCw, Plus, Lock, X, Save, Trash2 } from 'lucide-react';
 import StudentSearch from '../../../components/StudentSearch';
+import SearchableDropdown from '../../../components/common/SearchableDropdown';
 import { toast } from 'react-toastify';
 import moment from 'moment';
 import { TableSkeleton } from '../../../components/common/SkeletonLoader';
+import Swal from 'sweetalert2';
 
 const StudentList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { students, pagination, isLoading, isSuccess, message } = useSelector((state) => state.students);
+  const { students, pagination, isLoading, isSuccess, message, uniqueReferences } = useSelector((state) => state.students);
   const { courses, branches } = useSelector((state) => state.master);
   const { user } = useSelector((state) => state.auth);
   
@@ -26,7 +28,7 @@ const StudentList = () => {
     batch: '',
     branchId: '',
     pageSize: 10,
-    pageNumber: 1,
+    page: 1,
     isRegistered: 'true'
   });
 
@@ -41,6 +43,7 @@ const StudentList = () => {
   useEffect(() => {
     dispatch(fetchCourses());
     dispatch(fetchBatches()); 
+    dispatch(fetchUniqueReferences());
     if (user?.role === 'Super Admin') {
         dispatch(fetchBranches());
     }
@@ -68,20 +71,20 @@ const StudentList = () => {
   };
 
   const handleSearch = () => {
-    setAppliedFilters({ ...filters, pageNumber: 1 });
+    setAppliedFilters({ ...filters, page: 1 });
   };
 
   const handlePageChange = (newPage) => {
-    const updated = { ...filters, pageNumber: newPage };
+    const updated = { ...filters, page: newPage };
     setFilters(updated);
-    setAppliedFilters(prev => ({ ...prev, pageNumber: newPage }));
+    setAppliedFilters(prev => ({ ...prev, page: newPage }));
   };
   
   const handlePageSizeChange = (e) => {
       const size = e.target.value;
-      const updated = { ...filters, pageSize: size, pageNumber: 1 };
+      const updated = { ...filters, pageSize: size, page: 1 };
       setFilters(updated);
-      setAppliedFilters(prev => ({ ...prev, pageSize: size, pageNumber: 1 }));
+      setAppliedFilters(prev => ({ ...prev, pageSize: size, page: 1 }));
   };
 
   const resetFilters = () => {
@@ -95,7 +98,7 @@ const StudentList = () => {
         batch: '', 
         branchId: '',
         pageSize: 10, 
-        pageNumber: 1, 
+        page: 1, 
         isRegistered: 'true'
     };
     setFilters(initial);
@@ -123,9 +126,29 @@ const StudentList = () => {
   };
 
   const handleDelete = (id) => {
-      if (window.confirm("Are you sure you want to permanently delete this student? This action cannot be undone.")) {
-          dispatch(deleteStudent(id));
+      if (user?.role !== 'Super Admin') {
+          Swal.fire({
+              title: 'Access Denied',
+              text: 'Only Super Admin can delete students. Please contact the Admin.',
+              icon: 'error',
+              confirmButtonColor: '#d33',
+          });
+          return;
       }
+      
+      Swal.fire({
+          title: 'Are you sure?',
+          text: "You want to permanently delete this student? This action cannot be undone.",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it!'
+      }).then((result) => {
+          if (result.isConfirmed) {
+              dispatch(deleteStudent(id));
+          }
+      });
   };
 
   return (
@@ -170,11 +193,7 @@ const StudentList = () => {
                         label="Search Student"
                         onSelect={(id, student) => {
                             if (student) {
-                                const newFilters = { ...filters, studentName: student.firstName, pageNumber: 1 };
-                                setFilters(newFilters);
-                                setAppliedFilters(newFilters);
-                            } else {
-                                const newFilters = { ...filters, studentName: '', pageNumber: 1 };
+                                const newFilters = { ...filters, studentName: '', page: 1 };
                                 setFilters(newFilters);
                                 setAppliedFilters(newFilters);
                             }
@@ -185,13 +204,11 @@ const StudentList = () => {
                     />
                 </div>
                 <div>
-                    <label className="text-xs text-gray-500 font-semibold mb-1 block">Reference</label>
-                    <input 
-                        type="text" 
-                        name="reference" 
-                        value={filters.reference} 
-                        onChange={handleFilterChange} 
-                        className="w-full border p-2.5 rounded text-sm focus:ring-2 focus:ring-primary outline-none" 
+                    <SearchableDropdown 
+                        label="Reference"
+                        options={uniqueReferences}
+                        value={filters.reference}
+                        onSelect={(val) => setFilters({ ...filters, reference: val })}
                         placeholder="Search Reference..."
                     />
                 </div>
@@ -269,6 +286,7 @@ const StudentList = () => {
         <table className="w-full border-collapse min-w-[1200px]">
           <thead>
             <tr className="bg-blue-600 text-white text-left text-xs uppercase tracking-wider">
+              <th className="p-2 border font-semibold w-12 text-center">Sr No</th>
               <th className="p-2 border font-semibold">Enroll No</th>
               <th className="p-2 border font-semibold">Reg No</th>
               <th className="p-2 border font-semibold">Admission Date</th>
@@ -280,6 +298,7 @@ const StudentList = () => {
               <th className="p-2 border font-semibold">Course</th>
               <th className="p-2 border font-semibold">Duration</th>
               <th className="p-2 border font-semibold">Branch</th>
+              <th className="p-2 border font-semibold text-center">Marksheet</th>
               <th className="p-2 border font-semibold text-center">Status</th>
               <th className="p-2 border font-semibold text-center sticky right-0 bg-blue-600 z-10 w-32">Actions</th>
             </tr>
@@ -287,6 +306,7 @@ const StudentList = () => {
           <tbody>
             {students.length > 0 ? students.map((s, index) => (
               <tr key={s._id} className="group hover:bg-blue-50 text-xs border-b border-gray-100 transition-colors">
+                <td className="p-2 border text-center font-medium text-gray-500">{(appliedFilters.page - 1) * appliedFilters.pageSize + index + 1}</td>
                 <td className="p-2 border font-bold text-gray-700">{s.enrollmentNo || '-'}</td>
                 <td className="p-2 border text-blue-600 font-mono">{s.regNo || '-'}</td>
                 
@@ -303,6 +323,23 @@ const StudentList = () => {
                 <td className="p-2 border">{s.course ? `${s.course.duration} ${s.course.durationType}` : '-'}</td>
 
                 <td className="p-2 border text-gray-600">{s.branchName ? (s.branchName.endsWith(' Branch') ? s.branchName : `${s.branchName} Branch`) : 'Main'}</td>
+                
+                <td className="p-2 border text-center whitespace-nowrap">
+                    {s.examResult ? (
+                        <a 
+                            href={`/print/exam-result/${s.examResult._id}?type=Marksheet`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-md border border-purple-200 hover:bg-purple-100 transition-colors inline-flex items-center gap-1 text-xs font-bold shadow-sm" 
+                            title="Print Marksheet"
+                        >
+                            <Printer size={13} /> Print
+                        </a>
+                    ) : (
+                        <span className="text-[10px] bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full font-medium">Pending</span>
+                    )}
+                </td>
+
                 <td className="p-2 border text-center">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                         s.isActive ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'
@@ -322,11 +359,9 @@ const StudentList = () => {
                         <Link to={`/master/student/new?updateId=${s._id}`} className="bg-orange-50 text-orange-600 p-1 rounded border border-orange-200 hover:bg-orange-100 transition" title="Update">
                             <Edit size={14}/>
                         </Link>
-                        {user?.role === 'Super Admin' && (
-                            <button onClick={() => handleDelete(s._id)} className="bg-red-50 text-red-600 p-1 rounded border border-red-200 hover:bg-red-100 transition" title="Delete">
-                                <Trash2 size={14}/>
-                            </button>
-                        )}
+                        <button onClick={() => handleDelete(s._id)} className="bg-red-50 text-red-600 p-1 rounded border border-red-200 hover:bg-red-100 transition" title="Delete">
+                            <Trash2 size={14}/>
+                        </button>
                         <Link to={`/print/admission-form/${s._id}?mode=FULL`} target="_blank" className="bg-purple-50 text-purple-600 p-1 rounded border border-purple-200 hover:bg-purple-100 transition" title="Print">
                             <Printer size={14}/>
                         </Link>
@@ -341,11 +376,51 @@ const StudentList = () => {
       </div>
       
       {/* Pagination Footer */}
-      <div className="bg-gray-50 px-4 py-3 border-t flex justify-between items-center mt-2 rounded-lg">
-          <span className="text-xs text-gray-500">Page {pagination.page} of {pagination.pages} ({pagination.count} records)</span>
-          <div className="flex gap-1">
-              <button disabled={pagination.page === 1} onClick={() => handlePageChange(pagination.page - 1)} className="px-3 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-xs">Prev</button>
-              <button disabled={pagination.page === pagination.pages} onClick={() => handlePageChange(pagination.page + 1)} className="px-3 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-xs">Next</button>
+      <div className="bg-gray-50 px-4 py-3 border-t flex flex-col md:flex-row justify-between items-center mt-2 rounded-lg gap-4">
+          <span className="text-xs text-gray-500 font-medium">Showing {students.length} of {pagination.count} records (Page {pagination.page} of {pagination.pages})</span>
+          <div className="flex flex-wrap justify-center gap-1">
+              <button 
+                disabled={pagination.page === 1} 
+                onClick={() => handlePageChange(1)} 
+                className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-[10px] font-bold uppercase"
+              >First</button>
+              
+              <button 
+                disabled={pagination.page === 1} 
+                onClick={() => handlePageChange(pagination.page - 1)} 
+                className="px-3 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-xs font-bold"
+              >Prev</button>
+
+              {/* Dynamic Page Numbers */}
+              {[...Array(pagination.pages)].map((_, i) => {
+                  const p = i + 1;
+                  // Only show current, 2 before, 2 after
+                  if (p === 1 || p === pagination.pages || (p >= pagination.page - 2 && p <= pagination.page + 2)) {
+                      return (
+                        <button 
+                            key={p} 
+                            onClick={() => handlePageChange(p)} 
+                            className={`px-3 py-1 border rounded text-xs font-bold transition-all ${pagination.page === p ? 'bg-primary text-white border-primary shadow-md scale-110' : 'bg-white hover:bg-gray-100'}`}
+                        >
+                            {p}
+                        </button>
+                      );
+                  }
+                  if (p === pagination.page - 3 || p === pagination.page + 3) return <span key={p} className="px-1 text-gray-400">...</span>;
+                  return null;
+              })}
+
+              <button 
+                disabled={pagination.page === pagination.pages} 
+                onClick={() => handlePageChange(pagination.page + 1)} 
+                className="px-3 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-xs font-bold"
+              >Next</button>
+
+              <button 
+                disabled={pagination.page === pagination.pages} 
+                onClick={() => handlePageChange(pagination.pages)} 
+                className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-[10px] font-bold uppercase"
+              >Last</button>
           </div>
       </div>
 

@@ -116,10 +116,9 @@ const FreeStudyMaterial = () => {
                                     <td className="p-2 border text-center sticky right-0 bg-white group-hover:bg-blue-50">
                                         {material.document ? (
                                             <a 
-                                                href={`${import.meta.env.VITE_API_URL.replace('/api', '')}/${material.document}`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm font-semibold"
+                                                href={`${import.meta.env.VITE_API_URL}/materials/download/${material._id}`} 
+                                                download
+                                                className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors shadow-sm font-semibold"
                                             >
                                                 <Download size={14} />
                                                 Download

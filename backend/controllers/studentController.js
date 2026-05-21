@@ -5,6 +5,8 @@ const Course = require('../models/Course');
 const Batch = require('../models/Batch'); 
 const Branch = require('../models/Branch'); 
 const Inquiry = require('../models/Inquiry');
+const ExamResult = require('../models/ExamResult');
+const ExamRequest = require('../models/ExamRequest');
 const sendSMS = require('../utils/smsSender');
 const asyncHandler = require('express-async-handler');
 const Counter = require('../models/Counter');
@@ -17,10 +19,17 @@ const getStudents = asyncHandler(async (req, res) => {
         page = 1, pageSize = 10, courseFilter, studentName,
         hasPendingFees, reference, startDate, endDate,
         isRegistered, isAdmissionFeesPaid, batch, branchId,
-        sortBy = '-createdAt'
+        sortBy = '-createdAt', ids
     } = req.query;
     
     let query = { isDeleted: false };
+
+    if (ids !== undefined) {
+        if (!ids) {
+            return res.json({ students: [], page: Number(page) || 1, pages: 0, count: 0 });
+        }
+        query._id = { $in: ids.split(',') };
+    }
 
     // Branch-based filtering logic
     if (req.user.role !== 'Super Admin' && req.user.branchId) {
@@ -32,13 +41,22 @@ const getStudents = asyncHandler(async (req, res) => {
     // Other filters
     if (courseFilter) query.course = courseFilter;
     if (studentName) {
-        const nameRegex = new RegExp(studentName, 'i');
-        query.$or = [
-            { firstName: nameRegex },
-            { lastName: nameRegex },
-            { regNo: nameRegex },
-            { enrollmentNo: nameRegex }
-        ];
+        const parts = studentName.trim().split(/\s+/);
+        if (parts.length > 1) {
+            // Search for full name combinations
+            query.$or = [
+                { $and: [{ firstName: { $regex: parts[0], $options: 'i' } }, { lastName: { $regex: parts[parts.length - 1], $options: 'i' } }] },
+                { $and: [{ firstName: { $regex: parts[parts.length - 1], $options: 'i' } }, { lastName: { $regex: parts[0], $options: 'i' } }] }
+            ];
+        } else {
+            const nameRegex = new RegExp(studentName, 'i');
+            query.$or = [
+                { firstName: nameRegex },
+                { lastName: nameRegex },
+                { regNo: nameRegex },
+                { enrollmentNo: nameRegex }
+            ];
+        }
     }
     if (hasPendingFees === 'true') query.pendingFees = { $gt: 0 };
     if (reference) query.reference = { $regex: reference, $options: 'i' };
@@ -57,6 +75,17 @@ const getStudents = asyncHandler(async (req, res) => {
         query.isAdmissionFeesPaid = isAdmissionFeesPaid === 'true';
     }
 
+    // New: Handle isCancelled filter (Default: exclude cancelled students)
+    const { isCancelled } = req.query;
+    if (isCancelled === 'true') {
+        query.isCancelled = true;
+    } else if (isCancelled === 'all') {
+        // Include both active and cancelled (no filter on isCancelled)
+    } else {
+        // Default: only show active students (isCancelled: false)
+        query.isCancelled = false;
+    }
+
     const limit = Number(pageSize) || 10;
     const pageNum = Number(page) || 1;
     const count = await Student.countDocuments(query);
@@ -67,9 +96,22 @@ const getStudents = asyncHandler(async (req, res) => {
         .populate('userId', 'username')
         .limit(limit)
         .skip(limit * (pageNum - 1))
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
-    res.json({ students, page: pageNum, pages: Math.ceil(count / limit), count });
+    const studentIds = students.map(s => s._id);
+    const examResults = await ExamResult.find({ student: { $in: studentIds }, isDeleted: false }).lean();
+    const resultMap = {};
+    examResults.forEach(r => {
+        resultMap[r.student.toString()] = r;
+    });
+
+    const studentsWithResults = students.map(s => ({
+        ...s,
+        examResult: resultMap[s._id.toString()] || null
+    }));
+
+    res.json({ students: studentsWithResults, page: pageNum, pages: Math.ceil(count / limit), count });
 });
 
 // ... (Rest of the controller functions remain unchanged)
@@ -181,27 +223,29 @@ const createStudent = asyncHandler(async (req, res) => {
             });
         }
 
-        if (isAdmissionFeesPaid) {
-            const courseDoc = await Course.findById(student.course);
-            const batchDoc = await Batch.findOne({ name: student.batch }); 
-            
-            const courseName = courseDoc ? courseDoc.name : 'N/A';
-            const batchTime = batchDoc ? `${batchDoc.startTime} to ${batchDoc.endTime}` : 'N/A';
-            const fullName = `${student.firstName} ${student.lastName}`;
-    
-            const smsMessage = `Welcome to Smart Institute, Dear, ${fullName}. your admission has been successfully completed. Enrollment No. ${student.enrollmentNo}, course ${courseName}, Batch Time ${batchTime}`;
-    
-            const contacts = [...new Set([student.mobileStudent, student.mobileParent, student.contactHome].filter(Boolean))]; 
-            
-            // Send Welcome SMS
-            await Promise.all(contacts.map(num => sendSMS(num, smsMessage)))
-                .then(() => console.log('Admission Welcome SMS sent successfully'))
-                .catch(err => console.error('Admission Welcome SMS failed', err));
+        const courseDoc = await Course.findById(student.course);
+        const batchDoc = await Batch.findOne({ name: student.batch }); 
+        
+        const courseName = courseDoc ? courseDoc.name : 'N/A';
+        const batchTime = batchDoc ? `${batchDoc.startTime} to ${batchDoc.endTime}` : 'N/A';
+        const fullName = `${student.firstName} ${student.lastName}`;
 
+        const smsMessage = `Welcome to Smart Institute, Dear, ${fullName}. your admission has been successfully completed. Enrollment No. ${student.enrollmentNo}, course ${courseName}, Batch Time ${batchTime}`;
+
+        const contacts = [...new Set([student.mobileStudent, student.mobileParent, student.contactHome].filter(Boolean))]; 
+        
+        // Always send Welcome SMS (Enrollment)
+        await Promise.all(contacts.map(num => sendSMS(num, smsMessage, 'Admission')))
+            .then(() => console.log('Admission Welcome SMS sent successfully'))
+            .catch(err => console.error('Admission Welcome SMS failed', err));
+
+        if (isAdmissionFeesPaid) {
+            // Wait 2 seconds before sending the Fee SMS to ensure Enrollment SMS arrives first
+            await new Promise(resolve => setTimeout(resolve, 2000));
             // Send Fee SMS (Admission Fee)
             const feeSmsMessage = `Dear, ${fullName}. Your Course fees ${feeDetails.amount} has been deposited for Admission Fees, Reg.No. ${student.enrollmentNo || 'N/A'}. Thank you,\nSmart Institute`;
             console.log(`Sending Admission Fee SMS to: ${contacts.join(', ')} | Msg: ${feeSmsMessage}`);
-            await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage)))
+            await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage, 'Fees')))
                 .catch(err => console.error('Admission Fee SMS failed', err));
         }
 
@@ -369,14 +413,16 @@ const confirmStudentRegistration = asyncHandler(async (req, res) => {
         
             if (student.mobileStudent) {
                 const regMessage = `Dear, ${student.firstName} ${student.lastName}. Your Registration process has been successfully completed. Reg.No. ${finalRegNo}, User ID-${username}, Password-${password}, smart institute.`;
-                await sendSMS(student.mobileStudent, regMessage)
+                await sendSMS(student.mobileStudent, regMessage, 'Admission')
                     .catch(err => console.error('Registration SMS failed', err));
             }
         
             // Send Fee SMS (Registration Fee)
             if (feeDetails && Number(feeDetails.amount) > 0) {
+                // Wait 2 seconds before sending the Fee SMS to ensure Registration SMS arrives first
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 const feeSmsMessage = `Dear, ${student.firstName} ${student.middleName ? student.middleName + ' ' : ''}${student.lastName}. Your Course fees ${feeDetails.amount} has been deposited for Registration Fees, Reg.No. ${finalRegNo}. Thank you,\nSmart Institute`;
-                await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage)))
+                await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage, 'Fees')))
                     .catch(err => console.error('Registration Fee SMS failed', err));
             }
         
@@ -440,6 +486,11 @@ const getNextRegNo = asyncHandler(async (req, res) => {
 });
 
 const deleteStudent = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'Super Admin') {
+        res.status(403);
+        throw new Error('Only Super Admin can delete students. Please contact the Admin.');
+    }
+
     const student = await Student.findById(req.params.id);
     if (student) {
         await FeeReceipt.deleteMany({ student: student._id });
@@ -613,7 +664,7 @@ const resetStudentLogin = asyncHandler(async (req, res) => {
 
     if (student.mobileStudent) {
         const msg = `Dear ${student.firstName}, your login details have been updated. User ID: ${user.username}, Password: ${password || '(Unchanged)'}. Smart Institute.`;
-        sendSMS(student.mobileStudent, msg).catch(err => console.error('Reset Login SMS failed', err));
+        sendSMS(student.mobileStudent, msg, 'General').catch(err => console.error('Reset Login SMS failed', err));
     }
 
     res.json({ message: 'Login details updated successfully', username: user.username });
@@ -631,4 +682,205 @@ const cancelStudent = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getStudents, getStudentById, createStudent, updateStudent, confirmStudentRegistration, deleteStudent, toggleStudentStatus, resetStudentLogin, getNextRegNo, cancelStudent };
+const reactivateStudent = asyncHandler(async (req, res) => {
+    const student = await Student.findById(req.params.id);
+    if (student) {
+        student.isCancelled = false;
+        student.cancelledDate = null;
+        student.isActive = true;
+        await student.save();
+        res.json({ message: 'Student Admission Reactivated Successfully', _id: student._id });
+    } else {
+        res.status(404); throw new Error('Student not found');
+    }
+});
+
+const getExamPendingStudents = asyncHandler(async (req, res) => {
+    const { page = 1, pageSize = 10, branchId } = req.query;
+    const limit = Number(pageSize) || 10;
+    const skip = limit * (Number(page) - 1);
+
+    let query = { isDeleted: false, isRegistered: true, isCancelled: false };
+
+    if (req.user.role !== 'Super Admin' && req.user.branchId) {
+        query.branchId = req.user.branchId;
+    } else if (branchId) {
+        query.branchId = branchId;
+    }
+
+    // Fetch all relevant students to filter in JS (for complex date logic)
+    const allStudents = await Student.find(query)
+        .populate('course', 'name duration durationType shortName')
+        .lean();
+
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+    // Filter students whose course ends within 30 days or has already ended
+    let pendingStudents = allStudents.filter(student => {
+        if (!student.course || !student.admissionDate) return false;
+
+        const startDate = new Date(student.admissionDate);
+        const duration = student.course.duration || 0;
+        const type = student.course.durationType || 'Month';
+
+        let endDate = new Date(startDate);
+        if (type === 'Month') endDate.setMonth(endDate.getMonth() + duration);
+        else if (type === 'Year') endDate.setFullYear(endDate.getFullYear() + duration);
+        else if (type === 'Days') endDate.setDate(endDate.getDate() + duration);
+
+        student.courseEndDate = endDate;
+        
+        const now = new Date();
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+        // Show only if ending in the next 30 days, but hasn't ended yet (before completion)
+        return endDate >= now && endDate <= thirtyDaysFromNow;
+    });
+
+    // Check if exam already taken OR already requested
+    const studentIds = pendingStudents.map(s => s._id);
+    
+    const [results, activeRequests, cancelledRequests] = await Promise.all([
+        ExamResult.find({ student: { $in: studentIds }, isDeleted: false }).lean(),
+        ExamRequest.find({ student: { $in: studentIds }, isDeleted: false, status: { $ne: 'Cancelled' } }).lean(),
+        ExamRequest.find({ student: { $in: studentIds }, isDeleted: false, status: 'Cancelled' }).sort({ updatedAt: -1 }).lean()
+    ]);
+
+    const studentsWhoTookExam = new Set(results.map(r => r.student.toString()));
+    const studentsWhoRequestedExam = new Set(activeRequests.map(r => r.student.toString()));
+    
+    // Map cancellation reasons (latest first)
+    const cancellationMap = {};
+    cancelledRequests.forEach(cr => {
+        if (!cancellationMap[cr.student.toString()]) {
+            cancellationMap[cr.student.toString()] = cr.cancellationReason;
+        }
+    });
+
+    // Keep only those who haven't taken the exam AND haven't requested it yet
+    pendingStudents = pendingStudents.filter(s => 
+        !studentsWhoTookExam.has(s._id.toString()) && 
+        !studentsWhoRequestedExam.has(s._id.toString())
+    ).map(s => ({
+        ...s,
+        cancellationReason: cancellationMap[s._id.toString()] || ''
+    }));
+
+    // Sort by end date (closest first)
+    pendingStudents.sort((a, b) => a.courseEndDate - b.courseEndDate);
+
+    const count = pendingStudents.length;
+    const paginatedStudents = pendingStudents.slice(skip, skip + limit);
+
+    res.json({ 
+        students: paginatedStudents, 
+        page: Number(page), 
+        pages: Math.ceil(count / limit), 
+        count 
+    });
+});
+
+const getUniqueReferences = asyncHandler(async (req, res) => {
+    let query = { isDeleted: false };
+    
+    if (req.user.role !== 'Super Admin' && req.user.branchId) {
+        query.branchId = req.user.branchId;
+    }
+
+    const references = await Student.distinct('reference', query);
+    // Filter out null, undefined, or empty strings and sort
+    const filteredReferences = references.filter(r => r && r.trim() !== '').sort();
+    res.json(filteredReferences);
+});
+
+module.exports = { 
+    getStudents, 
+    getStudentById, 
+    createStudent, 
+    updateStudent, 
+    confirmStudentRegistration, 
+    deleteStudent, 
+    toggleStudentStatus, 
+    resetStudentLogin, 
+    getNextRegNo, 
+    cancelStudent,
+    reactivateStudent,
+    getExamPendingStudents,
+    getUniqueReferences
+};
+
+const verifyAdmissionStatus = asyncHandler(async (req, res) => {
+    const { enrollmentNo, regNo, identifier, dob } = req.body;
+    const searchVal = identifier || enrollmentNo || regNo;
+
+    if (!searchVal || !dob) {
+        res.status(400);
+        throw new Error('Enrollment/Registration number and Date of Birth are required');
+    }
+
+    const student = await Student.findOne({
+        $or: [
+            { enrollmentNo: { $regex: new RegExp(`^${searchVal.trim()}$`, 'i') } },
+            { regNo: { $regex: new RegExp(`^${searchVal.trim()}$`, 'i') } }
+        ],
+        isDeleted: false
+    })
+        .populate('course', 'name')
+        .lean();
+
+    if (!student) {
+        res.status(404);
+        throw new Error('No student found with the provided Enrollment/Registration number');
+    }
+
+    const d1 = new Date(dob);
+    const d2 = new Date(student.dob);
+    
+    const isSameDate = (d1.getUTCDate() === d2.getUTCDate() && d1.getUTCMonth() === d2.getUTCMonth() && d1.getUTCFullYear() === d2.getUTCFullYear()) ||
+                       (d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear());
+
+    if (!isSameDate) {
+        res.status(400);
+        throw new Error('Invalid Date of Birth for the provided student');
+    }
+
+    res.json({
+        success: true,
+        student: {
+            firstName: student.firstName,
+            middleName: student.middleName,
+            lastName: student.lastName,
+            enrollmentNo: student.enrollmentNo,
+            regNo: student.regNo,
+            courseName: student.course?.name || 'N/A',
+            batch: student.batch,
+            branchName: student.branchName,
+            admissionDate: student.admissionDate,
+            isRegistered: student.isRegistered,
+            isActive: student.isActive,
+            isCancelled: student.isCancelled,
+            isAdmissionFeesPaid: student.isAdmissionFeesPaid,
+            pendingFees: student.pendingFees,
+            totalFees: student.totalFees
+        }
+    });
+});
+
+module.exports = { 
+    getStudents, 
+    getStudentById, 
+    createStudent, 
+    updateStudent, 
+    confirmStudentRegistration, 
+    deleteStudent, 
+    toggleStudentStatus, 
+    resetStudentLogin, 
+    getNextRegNo, 
+    cancelStudent,
+    reactivateStudent,
+    getExamPendingStudents,
+    getUniqueReferences,
+    verifyAdmissionStatus
+};

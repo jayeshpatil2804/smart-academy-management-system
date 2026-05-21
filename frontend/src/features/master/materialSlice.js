@@ -1,16 +1,15 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_URL = '/api/materials/';
+const API_URL = `${import.meta.env.VITE_API_URL}/materials/`;
 
 // Fetch Materials
 export const fetchMaterials = createAsyncThunk(
   'materials/getAll',
   async (filters, thunkAPI) => {
     try {
-      // filters is an object { fromDate, toDate, type, searchBy, value, isActive }
       const queryString = new URLSearchParams(filters).toString();
-      const response = await axios.get(API_URL + '?' + queryString);
+      const response = await axios.get(`${API_URL}?${queryString}`, { withCredentials: true });
       return response.data;
     } catch (error) {
       const message =
@@ -27,8 +26,8 @@ export const createMaterial = createAsyncThunk(
   'materials/create',
   async (materialData, thunkAPI) => {
     try {
-      // materialData should be FormData given file upload
       const response = await axios.post(API_URL, materialData, {
+        withCredentials: true,
         headers: {
             'Content-Type': 'multipart/form-data',
         }
@@ -49,7 +48,8 @@ export const updateMaterial = createAsyncThunk(
   'materials/update',
   async ({ id, data }, thunkAPI) => {
     try {
-      const response = await axios.put(API_URL + id, data, {
+      const response = await axios.put(`${API_URL}${id}`, data, {
+        withCredentials: true,
         headers: {
             'Content-Type': 'multipart/form-data',
         }
@@ -70,7 +70,7 @@ export const deleteMaterial = createAsyncThunk(
   'materials/delete',
   async (id, thunkAPI) => {
     try {
-      await axios.delete(API_URL + id);
+      await axios.delete(`${API_URL}${id}`, { withCredentials: true });
       return id;
     } catch (error) {
       const message =
@@ -119,7 +119,7 @@ const materialSlice = createSlice({
       .addCase(createMaterial.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
-        state.materials.push(action.payload);
+        state.materials.unshift(action.payload);
         state.message = 'Material created successfully';
       })
       .addCase(createMaterial.rejected, (state, action) => {

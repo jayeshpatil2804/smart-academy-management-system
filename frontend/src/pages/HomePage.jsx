@@ -6,6 +6,9 @@ import { createInquiry, createPublicInquiry } from '../features/transaction/tran
 import { toast } from 'react-toastify';
 import { Link, useNavigate } from 'react-router-dom';
 import newsService from '../services/newsService';
+import topperService from '../services/topperService';
+import bannerService from '../services/bannerService';
+import homeSectionService from '../services/homeSectionService';
 import { ArrowRight, X,Trophy, Calendar, ChevronLeft, ChevronRight, Phone, Mail, MapPin, AlertCircle, Quote, Star, Users, BookOpen, ChevronDown } from 'lucide-react';
 import { formatDate } from '../utils/dateUtils';
 import HeroCarousel from '../components/ui/HeroCarousel';
@@ -16,6 +19,7 @@ import HeroImage4 from '../assets/textileDesign_optimized.webp';
 import HeroImage5 from '../assets/GraphicDesigning_optimized.webp';
 import HeroImage6 from '../assets/textileDesign_2_optimized.webp';
 import Reveal from '../components/Reveal';
+import FeedbackSection from '../components/ui/FeedbackSection';
 
 // Keep existing generic Carousel for Toppers/Reviews
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -106,6 +110,16 @@ const HomePage = () => {
     const [latestNews, setLatestNews] = useState([]); 
     const [newsLoading, setNewsLoading] = useState(true);
     const [selectedNews, setSelectedNews] = useState(null);
+    const [toppers, setToppers] = useState([]);
+    const [toppersLoading, setToppersLoading] = useState(true);
+    const defaultHeroImages = [
+      { image: HeroImage3 },
+      { image: HeroImage4 },
+      { image: HeroImage5 },
+      { image: HeroImage6 }
+    ];
+    const [heroImages, setHeroImages] = useState(defaultHeroImages);
+    const [homeSections, setHomeSections] = useState({});
   
     const [formData, setFormData] = useState({
       name: '',
@@ -132,7 +146,43 @@ const HomePage = () => {
       dispatch(getPublicBranches());
       generateCaptcha();
       fetchLatestNews();
+      fetchToppers();
+      fetchBanners();
+      fetchHomeSections();
     }, [dispatch]);
+
+    const fetchHomeSections = async () => {
+        try {
+            const data = await homeSectionService.getPublicSections();
+            const map = {};
+            data.forEach(s => { map[s.sectionKey] = s; });
+            setHomeSections(map);
+        } catch (error) {
+            console.error('Failed to load home sections', error);
+        }
+    };
+
+    const fetchBanners = async () => {
+        try {
+            const data = await bannerService.getPublicBanners();
+            if (data && data.length > 0) {
+                setHeroImages([...defaultHeroImages, ...data]);
+            }
+        } catch (error) {
+            console.error("Failed to load banners", error);
+        }
+    };
+
+    const fetchToppers = async () => {
+        try {
+            const data = await topperService.getPublicToppers();
+            setToppers(data);
+        } catch (error) {
+            console.error("Failed to load toppers", error);
+        } finally {
+            setToppersLoading(false);
+        }
+    };
 
     const fetchLatestNews = async () => {
         try {
@@ -202,23 +252,6 @@ const HomePage = () => {
       }
     };
   
-    const heroImages = [
-      { image: HeroImage3 },
-      { image: HeroImage4},
-      { image: HeroImage5},
-      { image: HeroImage6}
-    ];
-  
-    // Dummy Data for Toppers - Ideally this should also come from an API
-    const toppers = [
-      { name: "Priya Patel", percentage: "98.5", course: "Full Stack Development", image: "https://placehold.co/600x400/png?text=Priya+Patel" },
-      { name: "Rahul Sharma", percentage: "97.2", course: "Data Science & AI", image: "https://placehold.co/600x400/png?text=Rahul+Sharma" },
-      { name: "Amit Kumar", percentage: "96.8", course: "Cyber Security", image: "https://placehold.co/600x400/png?text=Amit+Kumar" },
-      { name: "Sneha Gupta", percentage: "95.5", course: "UI/UX Design", image: "https://placehold.co/600x400/png?text=Sneha+Gupta" },
-      { name: "Vikram Singh", percentage: "94.9", course: "Digital Marketing", image: "https://placehold.co/600x400/png?text=Vikram+Singh" },
-      { name: "Anjali Mehta", percentage: "93.7", course: "Web Development", image: "https://placehold.co/600x400/png?text=Anjali+Mehta" },
-    ];
-  
     return (
       <div className="w-full">
         {/* 1. New Hero Carousel */}
@@ -228,13 +261,14 @@ const HomePage = () => {
         <div className="w-full bg-slate-50 py-16 space-y-16">
             
             {/* Row 1: Image Left, Text Right */}
+            {(!homeSections.md_message || homeSections.md_message?.isActive) && (
             <div className="container mx-auto px-4">
               <Reveal>
                 <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
                      <div className="w-full lg:w-1/2">
                         <div className="relative group overflow-hidden rounded-2xl shadow-2xl border-4 border-white">
                             <img 
-                                src={HeroImage2} 
+                                src={homeSections.md_message?.image || HeroImage2} 
                                 alt="Student Campus Life" 
                                 className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-700" 
                             />
@@ -243,50 +277,46 @@ const HomePage = () => {
                      </div>
                      <div className="w-full lg:w-1/2 space-y-6">
                         <div className="inline-block px-4 py-2 bg-primary/10 rounded-full text-primary font-bold text-sm uppercase tracking-wider">
-                            Message For All Of You By Smart Group
+                            {homeSections.md_message?.title || 'Message For All Of You By Smart Group'}
                         </div>
                         <h2 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight">
-                            "Do The Time Safe, Money Safe Automatically Life Safe" <br/>
-                            {/* <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-600">Learning Environment</span> */}
+                            {homeSections.md_message?.subtitle || '"Do The Time Safe, Money Safe Automatically Life Safe"'}
                         </h2>
                         <p className="text-gray-600 text-lg leading-relaxed font-rozha text-xl">
-                            " बच्चो की तकनिकी शिक्षा ही आने वाले भारत का भविष्य है "
+                            {homeSections.md_message?.quote || '" बच्चो की तकनिकी शिक्षा ही आने वाले भारत का भविष्य है "'}
                         </p>
                         <div className="pt-4">
                             <button className="px-8 py-3 bg-white border-2 border-gray-900 text-gray-900 font-bold rounded-xl hover:bg-gray-900 hover:text-white transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                                Managing Director
+                                {homeSections.md_message?.buttonLabel || 'Managing Director'}
                             </button>
                         </div>
                      </div>
                 </div>
               </Reveal>
             </div>
+            )}
 
             {/* Row 2: Text Left, Image Right (on Desktop) */}
+            {(!homeSections.heritage || homeSections.heritage?.isActive) && (
             <div className="container mx-auto px-4">
               <Reveal>
                 <div className="flex flex-col-reverse lg:flex-row items-center gap-8 lg:gap-12">
                      <div className="w-full lg:w-1/2 space-y-6">
                         <div className="inline-block px-4 py-2 bg-accent/10 rounded-full text-accent font-bold text-sm uppercase tracking-wider">
-                            Our Heritage
+                            {homeSections.heritage?.subtitle || 'Our Heritage'}
                         </div>
                         <h2 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight">
-                            Building Leaders <br/>
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">Since 18+ Years</span>
+                            {homeSections.heritage?.title || 'Building Leaders'} <br/>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">{homeSections.heritage?.quote || 'Since 18+ Years'}</span>
                         </h2>
                         <p className="text-gray-600 text-lg leading-relaxed">
-                            With over a decade of excellence in education, we have shaped the careers of thousands of students. Our alumni are working in top companies across the globe, a testament to our quality education and industry-focused curriculum. Be a part of our legacy.
+                            {homeSections.heritage?.description || 'With over a decade of excellence in education, we have shaped the careers of thousands of students.'}
                         </p>
-                         <div className="pt-4">
-                            {/* <button className="px-8 py-3 bg-white border-2 border-gray-900 text-gray-900 font-bold rounded-xl hover:bg-gray-900 hover:text-white transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">
-                                Our History
-                            </button> */}
-                        </div>
                      </div>
                      <div className="w-full lg:w-1/2">
                          <div className="relative group overflow-hidden rounded-2xl shadow-2xl border-4 border-white">
                             <img 
-                                src={HeroImage1} 
+                                src={homeSections.heritage?.image || HeroImage1} 
                                 alt="Institute Building" 
                                 className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-700" 
                             />
@@ -296,6 +326,7 @@ const HomePage = () => {
                 </div>
               </Reveal>
             </div>
+            )}
 
         </div>
   
@@ -520,11 +551,16 @@ const HomePage = () => {
               <h4 className="text-accent font-bold uppercase tracking-widest text-sm mb-3">Hall of Fame</h4>
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">Student <span className="text-primary">Success Stories</span></h2>
               <p className="text-gray-500 mb-12 max-w-2xl mx-auto text-lg">Celebrating the academic excellence and outstanding achievements of our brilliant students who have made us proud.</p>
-              <Carousel items={toppers} />
+              {toppersLoading ? (
+                  <div className="py-20 text-gray-400 italic">Loading success stories...</div>
+              ) : toppers.length > 0 ? (
+                  <Carousel items={toppers} />
+              ) : (
+                  <div className="py-20 text-gray-400 italic">No success stories to display yet.</div>
+              )}
             </Reveal>
           </div>
         </div>
-  
         {/* 5. Latest News - Carousel */}
         <div className="bg-slate-50 py-20 border-t border-gray-200">
           <div className="container mx-auto px-4">
@@ -638,6 +674,9 @@ const HomePage = () => {
             </Reveal>
           </div>
         </div>
+
+        {/* 6. Feedback Section */}
+        <FeedbackSection />
 
         {/* News Detail Modal */}
         {selectedNews && (

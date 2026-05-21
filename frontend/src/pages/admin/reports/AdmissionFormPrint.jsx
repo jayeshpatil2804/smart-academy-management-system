@@ -93,33 +93,21 @@ const AdmissionFormPrint = () => {
     };
 
     const getBranchInfo = () => {
-        if (user?.role === 'Super Admin') {
-            return {
-                name: "Main Branch",
-                address: "Smart Institute",
-                phone: "96017-49300",
-                mobile: "98988-30409",
-                website: "www.smartinstituteonline.com"
-            };
+        // 1. Try to match student's branch from the branches list
+        if (student && branches && branches.length > 0) {
+            const branchObj = branches.find(b => b._id === student.branch || b.name === student.branchName);
+            if (branchObj) return branchObj;
         }
-        if (user && user.branchDetails && user.branchDetails.address) {
+
+        // 2. Fallback to logged-in user's branch if they are not Super Admin
+        if (user && user.role !== 'Super Admin' && user.branchDetails && user.branchDetails.address) {
             return user.branchDetails;
         }
 
-        if (!student || !branches) return {
-            name: "Bhestan Branch",
-            address: "309-A, 309-B, 3rd Floor, Sai Square Building, Bhestan Circle, Bhestan Surat Gujarat-395023 (INDIA)",
-            phone: "96017-49300",
-            mobile: "98988-30409",
-            website: "www.smartinstituteonline.com"
-        };
-        // Match by ID (student.branch) or Name (student.branchName)
-        const branchObj = branches.find(b => b._id === student.branch || b.name === student.branchName);
-        if (branchObj) return branchObj;
-
+        // 3. Fallback to hardcoded Main Branch (for Super Admin or if no match found)
         return {
-            name: "Bhestan Branch",
-            address: "309-A, 309-B, 3rd Floor, Sai Square Building, Bhestan Circle, Bhestan Surat Gujarat-395023 (INDIA)",
+            name: "Main Branch",
+            address: "Smart Institute",
             phone: "96017-49300",
             mobile: "98988-30409",
             website: "www.smartinstituteonline.com"
@@ -175,10 +163,10 @@ const AdmissionFormPrint = () => {
                         <img src={logo} alt="Logo" className="h-16 object-contain" />
                     </div>
                     <div className="w-2/3 text-right">
-                        <h1 className="text-xl font-bold uppercase tracking-wide">
+                        <h1 className="text-xl font-bold uppercase tracking-wide underline">
                             {branchInfo.name || student.branchName || "Bhestan Branch"}
                         </h1>
-                        <p className="text-xs font-semibold mt-1">
+                        <p className="text-xs font-semibold mt-1 max-w-[300px] ml-auto">
                             {branchInfo.address || student.branchLocation || "309-A, 309-B, 3rd Floor, Sai Square Building, Bhestan Circle, Bhestan Surat Gujarat-395023 (INDIA)"}
                         </p>
                         <p className="text-xs">
@@ -192,12 +180,17 @@ const AdmissionFormPrint = () => {
                 </div>
 
                 {/* Title & Photo */}
-                <div className="flex justify-between items-start mt-4 mb-4 relative">
-                    <div className="w-3/4 pr-4">
-                        <div className="bg-black text-white inline-block px-4 py-1 font-bold text-sm mb-2 rounded-sm uppercase tracking-wider">
+                <div className="mt-4 mb-4 relative">
+                    {/* Centered Title */}
+                    <div className="absolute left-1/2 -translate-x-1/2 top-0 text-center z-10">
+                        <div className="bg-black text-white inline-block px-8 py-1.5 font-bold text-sm rounded-sm uppercase tracking-wider">
                             Admission Form
                         </div>
-                        <p className="text-[10px] italic font-semibold">(USE CAPITAL LETTERS)</p>
+                    </div>
+
+                    <div className="flex justify-between items-start">
+                        <div className="w-3/4 pr-4">
+                            <p className="text-[10px] italic font-semibold mt-8">(USE CAPITAL LETTERS)</p>
 
                         <div className="flex items-center mt-4 gap-2">
                             <span className="font-bold text-sm text-nowrap">Enrollment Number:</span>
@@ -227,8 +220,9 @@ const AdmissionFormPrint = () => {
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <hr className="border-black mb-4" />
+            <hr className="border-black mb-4" />
 
                 {/* Student Personal Info */}
                 <div className="space-y-3 text-sm">
@@ -392,16 +386,21 @@ const AdmissionFormPrint = () => {
 
                 <div className="mt-6 space-y-4 text-sm">
                     <div className="flex items-end gap-2">
-                        <span className="font-bold w-48 text-nowrap">Executive/Reference Name:</span>
+                        <span className="font-bold min-w-[160px]">Executive/Reference Name:</span>
                         <Editable value={student.reference || ""} className="flex-grow" />
                     </div>
+
                     <div className="flex items-end gap-2">
-                        <span className="font-bold w-48 text-nowrap">Reference Address :</span>
+                        <span className="font-bold min-w-[160px]">Reference Address :</span>
                         <Editable value={referenceAddressDisplay} className="flex-grow" />
                     </div>
+
                     <div className="flex items-end gap-2">
-                        <span className="font-bold w-16">Mr./Mrs./Miss.</span>
-                        <Editable value="" className="flex-grow" />
+                        <span className="font-bold min-w-[140px] pr-2">Mr./Mrs./Miss.</span>
+                        <Editable
+                            value={`${student.firstName || ''} ${student.middleName || ''} ${student.lastName || ''}`.trim().toUpperCase()}
+                            className="flex-grow"
+                        />
                     </div>
 
                     <p className="text-xs text-justify mt-2 leading-relaxed">

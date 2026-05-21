@@ -1,21 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee, resetEmployeeStatus } from '../../../features/employee/employeeSlice';
 import { getBranches } from '../../../features/master/branchSlice'; // Import API
-import { fetchEducations, createEducation } from '../../../features/master/masterSlice';
+import { fetchEducations, createEducation, fetchReferences, createReference } from '../../../features/master/masterSlice';
 import { formatInputText } from '../../../utils/textFormatter';
 import { toast } from 'react-toastify';
-import { Search, Plus, X, Upload, User, Briefcase, Lock, Trash2, Edit, RotateCcw, Loader } from 'lucide-react';
+import { Search, Plus, X, Upload, User, Briefcase, Lock, Trash2, Edit, RotateCcw, Loader, Printer } from 'lucide-react';
 import ProfileImageUploader from '../../../components/common/ProfileImageUploader';
+import Swal from 'sweetalert2';
 
 import { useUserRights } from '../../../hooks/useUserRights';
+import { useNavigate } from 'react-router-dom';
 
 const EmployeeMaster = () => {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const { employees, isSuccess, isError, message, isLoading } = useSelector((state) => state.employees);
   const { branches } = useSelector((state) => state.branch);
-  const { educations } = useSelector((state) => state.master);
+  const { educations, references } = useSelector((state) => state.master);
   const { user } = useSelector((state) => state.auth); // Get Auth User
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -26,6 +30,11 @@ const EmployeeMaster = () => {
   const [showEduModal, setShowEduModal] = useState(false);
   const [newEdu, setNewEdu] = useState('');
   const [isEduLoading, setIsEduLoading] = useState(false);
+
+  // Reference States
+  const [showRefModal, setShowRefModal] = useState(false);
+  const [newRef, setNewRef] = useState({ name: '', mobile: '', address: '' });
+  const [isRefLoading, setIsRefLoading] = useState(false);
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm();
   const watchName = watch('name');
@@ -48,9 +57,69 @@ const EmployeeMaster = () => {
   };
   const [filters, setFilters] = useState(initialFilters);
 
+  // --- AUTOCOMPLETE SUGGESTIONS STATE ---
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const suggestionsRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+      const handleClickOutside = (event) => {
+          if (suggestionsRef.current && !suggestionsRef.current.contains(event.target)) {
+              setIsSuggestionsOpen(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch suggestions when search value or search by changes
+  useEffect(() => {
+      const fetchSuggestions = async () => {
+          setIsLoadingSuggestions(true);
+          try {
+              const API_URL = `${import.meta.env.VITE_API_URL}/employees/`;
+              const params = {
+                  searchBy: filters.searchBy,
+                  searchValue: filters.searchValue,
+                  pageSize: 50
+              };
+              const { data } = await axios.get(API_URL, { params, withCredentials: true });
+              const list = Array.isArray(data) ? data : (data.employees || []);
+              setSuggestions(list);
+          } catch (err) {
+              console.error("Failed to fetch suggestions", err);
+              setSuggestions([]);
+          } finally {
+              setIsLoadingSuggestions(false);
+          }
+      };
+
+      const timer = setTimeout(() => {
+          if (isSuggestionsOpen) {
+              fetchSuggestions();
+          }
+      }, 300);
+
+      return () => clearTimeout(timer);
+  }, [filters.searchValue, filters.searchBy, isSuggestionsOpen]);
+
+  const handleSuggestionSelect = (emp) => {
+      let val = emp.name;
+      if (filters.searchBy === 'email') val = emp.email;
+      if (filters.searchBy === 'mobile') val = emp.mobile;
+      
+      const updatedFilters = { ...filters, searchValue: val };
+      setFilters(updatedFilters);
+      setIsSuggestionsOpen(false);
+      dispatch(fetchEmployees(updatedFilters));
+  };
+
   useEffect(() => {
     dispatch(fetchEmployees(filters));
     dispatch(fetchEducations());
+    dispatch(fetchReferences());
     if(user?.role === 'Super Admin') {
         dispatch(getBranches());
     }
@@ -170,10 +239,33 @@ const EmployeeMaster = () => {
   };
 
   const handleDelete = (id) => {
-      if(!canDelete) return;
-      if(window.confirm("Are you sure you want to delete this employee?")) {
-          dispatch(deleteEmployee(id));
+      if(!canDelete) {
+          Swal.fire({
+              title: 'Access Denied',
+              text: "You don't have permission to delete employees.",
+              icon: 'error',
+              confirmButtonColor: '#d33',
+          });
+          return;
       }
+      Swal.fire({
+          title: 'Are you sure?',
+          text: "You want to permanently delete this employee? This action cannot be undone.",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it!'
+      }).then((result) => {
+          if (result.isConfirmed) {
+              dispatch(deleteEmployee(id));
+          }
+      });
+  };
+
+  const handlePrint = (emp) => {
+      console.log("Navigating to print with employee:", emp);
+      navigate('/print/employee-joining', { state: { employee: emp } });
   };
 
   const closeForm = () => {
@@ -256,8 +348,11 @@ const EmployeeMaster = () => {
                     <label className="text-xs text-gray-500 font-semibold mb-1 block">Search By</label>
                     <select 
                         value={filters.searchBy} 
-                        onChange={e => setFilters({...filters, searchBy: e.target.value})} 
-                        className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-primary"
+                        onChange={e => {
+                            setFilters({...filters, searchBy: e.target.value, searchValue: ''});
+                            setIsSuggestionsOpen(false);
+                        }} 
+                        className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
                     >
                         <option value="name">Employee Name</option>
                         <option value="email">Email ID</option>
@@ -266,15 +361,81 @@ const EmployeeMaster = () => {
                 </div>
 
                 {/* Search Value */}
-                <div>
+                <div className="relative" ref={suggestionsRef}>
                     <label className="text-xs text-gray-500 font-semibold mb-1 block">Value</label>
-                    <input 
-                        type="text" 
-                        placeholder="Search..."
-                        value={filters.searchValue} 
-                        onChange={e => setFilters({...filters, searchValue: e.target.value})} 
-                        className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-primary"
-                    />
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            placeholder={`Search by ${filters.searchBy === 'name' ? 'Employee Name' : filters.searchBy === 'email' ? 'Email ID' : 'Mobile Number'}...`}
+                            value={filters.searchValue} 
+                            onChange={e => {
+                                setFilters({...filters, searchValue: e.target.value});
+                                setIsSuggestionsOpen(true);
+                            }}
+                            onFocus={() => setIsSuggestionsOpen(true)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                    setIsSuggestionsOpen(false);
+                                    dispatch(fetchEmployees(filters));
+                                }
+                            }}
+                            className="w-full border p-2 pr-8 rounded text-sm outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
+                        />
+                        {filters.searchValue && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const updated = { ...filters, searchValue: '' };
+                                    setFilters(updated);
+                                    dispatch(fetchEmployees(updated));
+                                    setIsSuggestionsOpen(false);
+                                }}
+                                className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 transition"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Suggestions Dropdown */}
+                    {isSuggestionsOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-gray-100 animate-fadeIn">
+                            {isLoadingSuggestions ? (
+                                <div className="p-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                                    <Loader className="animate-spin w-4 h-4 text-primary" /> Loading suggestions...
+                                </div>
+                            ) : suggestions.length > 0 ? (
+                                suggestions.map(emp => (
+                                    <div
+                                        key={emp._id}
+                                        onClick={() => handleSuggestionSelect(emp)}
+                                        className="p-2.5 hover:bg-blue-50 cursor-pointer transition flex justify-between items-center text-xs group"
+                                    >
+                                        <div>
+                                            <div className="font-semibold text-gray-800 group-hover:text-primary">
+                                                {filters.searchBy === 'name' && emp.name}
+                                                {filters.searchBy === 'email' && emp.email}
+                                                {filters.searchBy === 'mobile' && emp.mobile}
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 mt-0.5">
+                                                {filters.searchBy !== 'name' && <span>{emp.name} • </span>}
+                                                {filters.searchBy !== 'email' && <span>{emp.email} • </span>}
+                                                {filters.searchBy !== 'mobile' && <span>{emp.mobile}</span>}
+                                                <span> ({emp.type})</span>
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] bg-gray-100 group-hover:bg-blue-100 group-hover:text-blue-700 px-2 py-0.5 rounded text-gray-600 font-medium">
+                                            Select
+                                        </span>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-3 text-center text-xs text-gray-400">
+                                    No matching employees found
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -377,6 +538,9 @@ const EmployeeMaster = () => {
                                             <Edit size={14}/>
                                         </button>
                                     )}
+                                    <button onClick={() => handlePrint(emp)} className="bg-green-50 text-green-600 p-1 rounded border border-green-200 hover:bg-green-100 transition" title="Print Agreement">
+                                        <Printer size={14}/>
+                                    </button>
                                     {canDelete && (
                                         <button onClick={() => handleDelete(emp._id)} className="bg-red-50 text-red-600 p-1 rounded border border-red-200 hover:bg-red-100 transition" title="Delete">
                                             <Trash2 size={14}/>
@@ -397,6 +561,55 @@ const EmployeeMaster = () => {
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
+                {/* Reference Modal */}
+                {showRefModal && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 rounded-lg">
+                      <div className="bg-white p-5 rounded-lg shadow-2xl w-96 border animate-fadeIn">
+                          <div className="flex justify-between items-center mb-4 border-b pb-2">
+                              <h4 className="font-bold text-gray-800">Add New Reference</h4>
+                              <button type="button" onClick={() => setShowRefModal(false)}><X size={18} className="text-gray-500 hover:text-red-500"/></button>
+                          </div>
+                          <div className="space-y-3">
+                              <input 
+                                  className="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Full Name *"
+                                  value={newRef.name}
+                                  onChange={e => setNewRef({...newRef, name: formatInputText(e.target.value)})}
+                              />
+                              <input 
+                                  className="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Mobile Number *"
+                                  value={newRef.mobile}
+                                  onChange={e => setNewRef({...newRef, mobile: e.target.value})}
+                              />
+                              <input 
+                                  className="w-full border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="City / Address"
+                                  value={newRef.address}
+                                  onChange={e => setNewRef({...newRef, address: formatInputText(e.target.value)})}
+                              />
+                              <button 
+                                  type="button" 
+                                  onClick={() => {
+                                      if(!newRef.name || !newRef.mobile) return toast.error('Name & Mobile required');
+                                      setIsRefLoading(true);
+                                      dispatch(createReference(newRef)).then((res) => {
+                                          setIsRefLoading(false);
+                                          if(!res.error) {
+                                              setValue('referName', newRef.name);
+                                              setValue('referMobile', newRef.mobile);
+                                              setShowRefModal(false);
+                                              toast.success('Reference Added!');
+                                              setNewRef({ name: '', mobile: '', address: '' });
+                                          }
+                                      });
+                                  }}
+                                  disabled={isRefLoading}
+                                  className="w-full py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition flex justify-center items-center gap-2"
+                              >
+                                  {isRefLoading ? 'Saving...' : 'Save Reference'}
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+                )}
                 {/* Education Modal */}
                 {showEduModal && (
                   <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 rounded-lg">
@@ -519,6 +732,39 @@ const EmployeeMaster = () => {
                                     className="w-full border p-2 rounded text-sm mt-1"
                                     onChange={(e) => setValue('address', formatInputText(e.target.value))}
                                 />
+                            </div>
+                             <div>
+                                <label className="block text-xs font-bold text-gray-700">Reference</label>
+                                <div className="flex gap-2 mt-1">
+                                    <select
+                                      {...register("referName")}
+                                      className="w-full border p-2 rounded text-sm"
+                                      onChange={(e) => {
+                                          const selected = references.find(r => r.name === e.target.value);
+                                          if(selected) {
+                                              setValue('referMobile', selected.mobile);
+                                          } else {
+                                              setValue('referMobile', '');
+                                          }
+                                      }}
+                                    >
+                                      <option value="">-- Select Reference --</option>
+                                      {references.map((opt, i) => (
+                                        <option key={opt._id || i} value={opt.name}>
+                                          {opt.name} ({opt.mobile})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowRefModal(true)}
+                                      className="p-2 bg-blue-50 text-blue-600 rounded border hover:bg-blue-100 flex-shrink-0"
+                                      title="Add New Reference"
+                                    >
+                                      <Plus size={20} />
+                                    </button>
+                                </div>
+                                <input type="hidden" {...register('referMobile')} />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-700">Education</label>
