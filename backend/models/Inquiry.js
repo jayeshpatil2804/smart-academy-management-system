@@ -74,6 +74,15 @@ const inquirySchema = new mongoose.Schema(
     // Follow-ups & Remarks
     followUpDate: { type: Date }, // Stores Date (and Time component)
     followUpDetails: { type: String },
+    followUpCount: { type: Number, default: 0 },
+    followUpHistory: [
+      {
+        date: { type: Date },
+        remarks: { type: String },
+        status: { type: String },
+        createdAt: { type: Date, default: Date.now }
+      }
+    ],
 
     // Extended Follow-up fields
     nextVisitingDate: { type: Date },

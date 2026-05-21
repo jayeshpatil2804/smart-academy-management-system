@@ -17,26 +17,38 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
 
     if (!inquiry) return null;
 
+    // Build a helper history if followUpHistory is missing or empty but followUpDate is set
+    const historyList = inquiry.followUpHistory && inquiry.followUpHistory.length > 0 
+        ? inquiry.followUpHistory 
+        : (inquiry.followUpDate ? [{
+            date: inquiry.followUpDate,
+            remarks: inquiry.followUpDetails || 'Initial follow-up',
+            status: inquiry.status || 'Open',
+            createdAt: inquiry.createdAt || inquiry.inquiryDate || new Date()
+          }] : []);
+
+    const followUpCount = inquiry.followUpCount || historyList.length || 0;
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm print:hidden">
             <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn flex flex-col max-h-[90vh]">
-                
+
                 {/* Header */}
                 <div className="bg-blue-600 text-white p-4 flex justify-between items-center print:hidden">
                     <h2 className="text-lg font-bold flex items-center gap-2">
                         Inquiry Details
                     </h2>
                     <div className="flex gap-2">
-                         {/* <button onClick={handlePrint} className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 hover:bg-blue-50 transition">
+                        {/* <button onClick={handlePrint} className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-bold flex items-center gap-1 hover:bg-blue-50 transition">
                             <Printer size={16}/> Print
                         </button> */}
-                        <button onClick={onClose} className="text-white hover:text-red-200 transition"><X size={24}/></button>
+                        <button onClick={onClose} className="text-white hover:text-red-200 transition"><X size={24} /></button>
                     </div>
                 </div>
 
                 {/* Printable Content */}
                 <div className="p-8 overflow-y-auto print:p-0 print:overflow-visible">
-                    
+
                     {/* Print Header (Only visible when printing or in this view) */}
                     <div className="mb-6 border-b pb-4">
                         <h1 className="text-2xl font-bold text-gray-800 text-center uppercase tracking-wide">Inquiry Information</h1>
@@ -44,7 +56,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                     </div>
 
                     <div className="space-y-6 text-sm">
-                        
+
                         {/* Student Detail Section */}
                         <div>
                             <div className="bg-gray-50 p-2 font-bold text-blue-800 uppercase text-xs tracking-wider border-l-4 border-blue-500 mb-4">
@@ -55,10 +67,10 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                 <div className="flex-shrink-0">
                                     {inquiry.studentPhoto ? (
                                         <div className="text-center">
-                                            <img 
+                                            <img
                                                 src={inquiry.studentPhoto.startsWith('http') ? inquiry.studentPhoto : `${import.meta.env.VITE_API_URL}/${inquiry.studentPhoto}`}
                                                 onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/150?text=No+Image"; }}
-                                                alt="Student" 
+                                                alt="Student"
                                                 className="w-32 h-32 rounded-lg object-cover border-2 border-gray-300 shadow-md"
                                             />
                                         </div>
@@ -68,7 +80,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 {/* Fields Grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 flex-grow">
                                     {/* Row 1 */}
@@ -108,7 +120,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                     </div>
                                     <div>
                                         <span className="block text-gray-500 text-xs uppercase font-semibold">Contact No (O)</span>
-                                        <span className="font-medium text-gray-900">{'-'}</span> 
+                                        <span className="font-medium text-gray-900">{'-'}</span>
                                     </div>
 
                                     {/* Row 5 */}
@@ -153,16 +165,16 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                     <span className="font-medium text-gray-900">{inquiry.allocatedTo?.name || '-'}</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                     <div>
+                                    <div>
                                         <span className="block text-gray-500 text-xs uppercase font-semibold">Visiting Date</span>
                                         <span className="font-medium text-gray-900">{formatDate(inquiry.inquiryDate)}</span>
-                                     </div>
-                                     <div>
+                                    </div>
+                                    <div>
                                         <span className="block text-gray-500 text-xs uppercase font-semibold">Visiting Time</span>
                                         <span className="font-medium text-gray-900">
                                             {inquiry.inquiryDate ? new Date(inquiry.inquiryDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                                         </span>
-                                     </div>
+                                    </div>
                                 </div>
                                 <div className="md:col-span-2">
                                     <span className="block text-gray-500 text-xs uppercase font-semibold">Followup Detail</span>
@@ -171,13 +183,75 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                                     </div>
                                 </div>
                                 <div className="md:col-span-2 mt-2 pt-2 border-t">
-                                     <span className="block text-blue-600 text-xs uppercase font-semibold">Next Followup Schedule</span>
-                                     <span className="font-bold text-gray-900">
-                                         {inquiry.nextVisitingDate ? formatDate(inquiry.nextVisitingDate) + (inquiry.nextVisitingDate && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0530 (India Standard Time)' && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' ? ' at ' + new Date(inquiry.nextVisitingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') : 'Not Scheduled'}
-                                     </span>
-                                     {inquiry.visitReason && <span className="text-gray-500 ml-2">({inquiry.visitReason})</span>}
+                                    <span className="block text-blue-600 text-xs uppercase font-semibold">Next Followup Schedule</span>
+                                    <span className="font-bold text-gray-900">
+                                        {inquiry.nextVisitingDate ? formatDate(inquiry.nextVisitingDate) + (inquiry.nextVisitingDate && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0530 (India Standard Time)' && new Date(inquiry.nextVisitingDate).toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' ? ' at ' + new Date(inquiry.nextVisitingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') : 'Not Scheduled'}
+                                    </span>
+                                    {inquiry.visitReason && <span className="text-gray-500 ml-2">({inquiry.visitReason})</span>}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Follow-Up History & Timeline Section */}
+                        <div>
+                            <div className="bg-gray-50 p-2 font-bold text-blue-800 uppercase text-xs tracking-wider border-l-4 border-blue-500 mb-4 flex justify-between items-center">
+                                <span>Follow-Up History Logs</span>
+                                <span className="bg-blue-600 text-white text-[10px] px-2.5 py-1 rounded-full font-bold shadow-sm">
+                                    Follow-ups: {followUpCount} {followUpCount === 1 ? 'time' : 'times'}
+                                </span>
+                            </div>
+
+                            {historyList.length > 0 ? (
+                                <div className="mt-4 relative border-l-2 border-blue-100 ml-4 pl-6 space-y-5">
+                                    {historyList.map((hist, idx) => (
+                                        <div key={hist._id || idx} className="relative animate-fadeIn">
+                                            {/* Step Circle Node */}
+                                            <div className="absolute -left-[35px] top-1 bg-blue-600 text-white rounded-full flex items-center justify-center w-6 h-6 border-2 border-white shadow-md text-[10px] font-bold">
+                                                {idx + 1}
+                                            </div>
+
+                                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-150 hover:bg-gray-100/50 transition duration-150">
+                                                {/* Header Line */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-gray-800 text-xs">
+                                                            Follow-Up Date: {formatDate(hist.date)}
+                                                        </span>
+                                                        {hist.date && new Date(hist.date).toTimeString() !== '00:00:00 GMT+0530 (India Standard Time)' && new Date(hist.date).toTimeString() !== '00:00:00 GMT+0000 (Coordinated Universal Time)' && (
+                                                            <span className="text-[10px] text-gray-500 font-medium">
+                                                                at {new Date(hist.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider self-start sm:self-auto border ${
+                                                        hist.status === 'Open' ? 'bg-green-100 text-green-700 border-green-200' :
+                                                        hist.status === 'Recall' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                                        hist.status === 'InProgress' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                                        hist.status === 'Complete' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                        'bg-gray-100 text-gray-600 border-gray-200'
+                                                    }`}>
+                                                        {hist.status || 'Open'}
+                                                    </span>
+                                                </div>
+                                                
+                                                {/* Remarks Box */}
+                                                <p className="text-gray-700 text-xs whitespace-pre-wrap font-sans bg-white p-2 rounded border border-gray-100 leading-relaxed shadow-sm">
+                                                    {hist.remarks || 'No remarks recorded.'}
+                                                </p>
+                                                
+                                                {/* Timestamp */}
+                                                <div className="text-[9px] text-gray-400 mt-2 text-right">
+                                                    Logged: {new Date(hist.createdAt || hist.date).toLocaleString()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 bg-gray-50 rounded-lg text-gray-500 italic text-xs border border-dashed border-gray-200">
+                                    No follow-up history has been recorded yet.
+                                </div>
+                            )}
                         </div>
 
                         {/* Referencive Detail Section */}
@@ -204,7 +278,7 @@ const InquiryViewModal = ({ inquiry, onClose }) => {
                         </div>
 
                     </div>
-                    
+
                     <div className="mt-8 pt-8 border-t text-center text-xs text-gray-400">
                         <p>Compass Education ERP System</p>
                     </div>

@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Trophy, Plus, Search, Edit, Trash2, X, Image as ImageIcon, ChevronDown } from 'lucide-react';
 import topperService from '../../../services/topperService';
-import { fetchCourses } from '../../../features/master/masterSlice';
+import { fetchCourses, fetchExamSchedules, fetchExamResults } from '../../../features/master/masterSlice';
 import { toast } from 'react-toastify';
 
 const ManageToppers = () => {
     const dispatch = useDispatch();
-    const { courses } = useSelector((state) => state.master);
+    const { courses, examSchedules, examResults } = useSelector((state) => state.master);
     
     // --- State ---
     const [toppersList, setToppersList] = useState([]);
@@ -28,12 +28,28 @@ const ManageToppers = () => {
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
 
+    // Cascading Dropdown State for Form
+    const [selectedExamName, setSelectedExamName] = useState('');
+    const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [selectedStudentId, setSelectedStudentId] = useState('');
+
+    const [isExamDropdownOpen, setIsExamDropdownOpen] = useState(false);
+    const [examSearch, setExamSearch] = useState('');
+
+    const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false);
+    const [courseSearch, setCourseSearch] = useState('');
+
+    const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
+    const [studentSearch, setStudentSearch] = useState('');
+
     // --- Effects ---
     useEffect(() => {
         fetchToppers();
         if (courses.length === 0) {
             dispatch(fetchCourses());
         }
+        dispatch(fetchExamSchedules());
+        dispatch(fetchExamResults());
     }, [dispatch, courses.length]);
 
     // --- Methods ---
@@ -74,6 +90,9 @@ const ManageToppers = () => {
             percentage: '',
             isActive: true
         });
+        setSelectedExamName('');
+        setSelectedCourseId('');
+        setSelectedStudentId('');
         setImageFile(null);
         setImagePreview(null);
         setShowModal(true);
@@ -88,6 +107,9 @@ const ManageToppers = () => {
             percentage: topper.percentage,
             isActive: topper.isActive
         });
+        setSelectedExamName('');
+        setSelectedCourseId('');
+        setSelectedStudentId('');
         setImagePreview(topper.image);
         setImageFile(null);
         setShowModal(true);
@@ -117,6 +139,8 @@ const ManageToppers = () => {
         data.append('isActive', formData.isActive);
         if (imageFile) {
             data.append('image', imageFile);
+        } else if (imagePreview) {
+            data.append('image', imagePreview);
         }
 
         try {
@@ -134,6 +158,76 @@ const ManageToppers = () => {
             toast.error(error.response?.data?.message || "Failed to save topper result");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Filter active exam schedules
+    const activeExamSchedules = React.useMemo(() => {
+        return (examSchedules || []).filter(e => e.isActive && !e.isDeleted && e.course && e.examName);
+    }, [examSchedules]);
+
+    // Unique exam names
+    const uniqueExamNames = React.useMemo(() => {
+        const names = new Set();
+        activeExamSchedules.forEach(e => {
+            if (e.examName) names.add(e.examName);
+        });
+        return Array.from(names);
+    }, [activeExamSchedules]);
+
+    // Courses for selected exam name
+    const coursesForSelectedExamName = React.useMemo(() => {
+        if (!selectedExamName) return [];
+        const coursesMap = new Map();
+        activeExamSchedules
+            .filter(e => e.examName === selectedExamName)
+            .forEach(e => {
+                if (e.course && e.course._id) {
+                    coursesMap.set(e.course._id, e.course);
+                }
+            });
+        return Array.from(coursesMap.values());
+    }, [selectedExamName, activeExamSchedules]);
+
+    // Matched schedule
+    const matchedSchedule = React.useMemo(() => {
+        if (!selectedExamName || !selectedCourseId) return null;
+        return activeExamSchedules.find(
+            e => e.examName === selectedExamName && e.course?._id === selectedCourseId
+        );
+    }, [selectedExamName, selectedCourseId, activeExamSchedules]);
+
+    // Students (with results) for selected schedule
+    const examResultsForSchedule = React.useMemo(() => {
+        if (!matchedSchedule) return [];
+        return (examResults || []).filter(r => r.exam?._id === matchedSchedule._id && !r.isDeleted);
+    }, [matchedSchedule, examResults]);
+
+    const handleStudentSelect = (resultId) => {
+        const selectedResult = examResultsForSchedule.find(r => r._id === resultId);
+        if (selectedResult) {
+            setSelectedStudentId(resultId);
+            
+            const fullName = `${selectedResult.student?.firstName || ''} ${selectedResult.student?.lastName || ''}`.trim();
+            const pct = ((selectedResult.marksObtained / selectedResult.totalMarks) * 100).toFixed(2);
+            
+            setFormData(prev => ({
+                ...prev,
+                name: fullName,
+                course: selectedResult.course?.name || '',
+                percentage: pct
+            }));
+
+            if (selectedResult.student?.studentPhoto) {
+                const photoUrl = selectedResult.student.studentPhoto.startsWith('http') 
+                    ? selectedResult.student.studentPhoto 
+                    : `${import.meta.env.VITE_API_URL?.replace('/api', '')}/${selectedResult.student.studentPhoto}`;
+                setImagePreview(photoUrl);
+                setImageFile(null);
+            } else {
+                setImagePreview(null);
+                setImageFile(null);
+            }
         }
     };
 
@@ -182,6 +276,7 @@ const ManageToppers = () => {
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-gray-100 text-left text-sm text-gray-600 uppercase tracking-wider">
+                                <th className="p-3 border-b w-12 text-center">Sr No</th>
                                 <th className="p-3 border-b">Image</th>
                                 <th className="p-3 border-b">Student Name</th>
                                 <th className="p-3 border-b">Course</th>
@@ -196,8 +291,9 @@ const ManageToppers = () => {
                             ) : filteredToppers.length === 0 ? (
                                 <tr><td colSpan="6" className="text-center p-8 text-gray-500">No results found.</td></tr>
                             ) : (
-                                filteredToppers.map((topper) => (
+                                filteredToppers.map((topper, index) => (
                                     <tr key={topper._id} className="hover:bg-gray-50 text-sm border-b transition-colors">
+                                        <td className="p-3 text-center font-medium text-gray-500">{index + 1}</td>
                                         <td className="p-3">
                                             <div className="w-12 h-12 rounded-full overflow-hidden border">
                                                 <img src={topper.image || 'https://via.placeholder.com/150'} alt={topper.name} className="w-full h-full object-cover" />
@@ -259,6 +355,68 @@ const ManageToppers = () => {
                                         </label>
                                     </div>
                                     <p className="text-xs text-gray-500">Recommended: Square image, Max 5MB</p>
+                                </div>
+
+                                <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg space-y-3">
+                                    <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Auto-fill from Exam Result (Optional)</h4>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        {/* 1. Exam Dropdown */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">1. Select Exam</label>
+                                            <select
+                                                value={selectedExamName}
+                                                onChange={(e) => {
+                                                    setSelectedExamName(e.target.value);
+                                                    setSelectedCourseId('');
+                                                    setSelectedStudentId('');
+                                                }}
+                                                className="w-full border rounded p-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                            >
+                                                <option value="">-- Select Exam --</option>
+                                                {uniqueExamNames.map(name => (
+                                                    <option key={name} value={name}>{name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* 2. Course Dropdown */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">2. Select Course</label>
+                                            <select
+                                                value={selectedCourseId}
+                                                onChange={(e) => {
+                                                    setSelectedCourseId(e.target.value);
+                                                    setSelectedStudentId('');
+                                                }}
+                                                disabled={!selectedExamName}
+                                                className="w-full border rounded p-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 bg-white"
+                                            >
+                                                <option value="">-- Select Course --</option>
+                                                {coursesForSelectedExamName.map(course => (
+                                                    <option key={course._id} value={course._id}>{course.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* 3. Student Dropdown */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">3. Select Student</label>
+                                            <select
+                                                value={selectedStudentId}
+                                                onChange={(e) => handleStudentSelect(e.target.value)}
+                                                disabled={!selectedCourseId}
+                                                className="w-full border rounded p-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-100 bg-white"
+                                            >
+                                                <option value="">-- Select Student --</option>
+                                                {examResultsForSchedule.map(r => (
+                                                    <option key={r._id} value={r._id}>
+                                                        {r.student?.firstName} {r.student?.lastName} ({((r.marksObtained / r.totalMarks) * 100).toFixed(1)}%)
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div>

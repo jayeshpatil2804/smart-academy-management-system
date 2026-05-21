@@ -5,7 +5,7 @@ exports.createTopperResult = async (req, res) => {
     try {
         console.log('Creating topper result:', req.body);
         const { name, course, percentage, isActive } = req.body;
-        const image = req.file ? req.file.path : ''; // Cloudinary URL from multer
+        const image = req.file ? req.file.path : (req.body.image || ''); // Cloudinary URL or existing URL
 
         if (!name || !course || percentage === undefined) {
             return res.status(400).json({ message: 'Name, course, and percentage are required.' });
@@ -52,6 +52,8 @@ exports.updateTopperResult = async (req, res) => {
         const updateData = { name, course, percentage, isActive };
         if (req.file) {
             updateData.image = req.file.path; // New Cloudinary URL
+        } else if (req.body.image !== undefined) {
+            updateData.image = req.body.image;
         }
 
         const updated = await TopperResult.findByIdAndUpdate(

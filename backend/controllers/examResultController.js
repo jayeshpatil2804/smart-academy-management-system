@@ -1,15 +1,22 @@
 const asyncHandler = require('express-async-handler');
 const ExamResult = require('../models/ExamResult');
 const Student = require('../models/Student');
+const Counter = require('../models/Counter');
+const ExamSchedule = require('../models/ExamSchedule');
 
 // @desc    Get Exam Results with Filters
 // @route   GET /api/master/exam-result
 const getExamResults = asyncHandler(async (req, res) => {
-    const { examId, batch, regNo, studentName } = req.query;
+    const { examId, batch, regNo, studentName, courseId, examName } = req.query;
 
     let query = { isDeleted: false };
 
     if (examId) query.exam = examId;
+    if (courseId) query.course = courseId;
+    if (examName) {
+        const schedules = await ExamSchedule.find({ examName: { $regex: examName, $options: 'i' } }).select('_id');
+        query.exam = { $in: schedules.map(s => s._id) };
+    }
     if (batch) query.batch = { $regex: batch, $options: 'i' };
     if (req.query.studentId) query.student = req.query.studentId;
     
@@ -28,7 +35,7 @@ const getExamResults = asyncHandler(async (req, res) => {
     }
 
     const results = await ExamResult.find(query)
-        .populate('student', 'firstName lastName regNo enrollmentNo mobileStudent')
+        .populate('student', 'firstName lastName regNo enrollmentNo mobileStudent studentPhoto')
         .populate('course', 'name')
         .populate('exam', 'examName')
         .sort({ createdAt: -1 });
@@ -39,21 +46,63 @@ const getExamResults = asyncHandler(async (req, res) => {
 // @desc    Create Exam Result
 // @route   POST /api/master/exam-result
 const createExamResult = asyncHandler(async (req, res) => {
-    const { studentId, examId, somNumber, csrNumber, marksObtained, totalMarks, grade, isActive } = req.body;
+    const { studentId, examId, somNumber, csrNumber, certificateNumber, subjectMarks, grade, isActive } = req.body;
 
-    // Fetch student to get Course and Batch automatically
     const student = await Student.findById(studentId);
     if (!student) {
         res.status(404); throw new Error('Student not found');
     }
+
+    // Auto-generate SOM and CSR if not provided
+    let finalSom = somNumber;
+    let finalCsr = csrNumber;
+
+    if (!finalSom) {
+        const counter = await Counter.findOneAndUpdate(
+            { _id: 'examResultSeq' },
+            { $inc: { seq: 1 } },
+            { new: true, upsert: true }
+        );
+        finalSom = `SOM-G${counter.seq.toString().padStart(5, '0')}`;
+    }
+
+    if (!finalCsr || finalCsr.startsWith('SOM-')) {
+        if (finalSom.startsWith('SOM-')) {
+            finalCsr = finalSom.replace('SOM-', 'CSR-');
+        } else {
+            finalCsr = `CSR-${finalSom}`;
+        }
+    }
+
+    let finalCert = certificateNumber;
+    if (!finalCert) {
+        if (finalSom.startsWith('SOM-G')) {
+            finalCert = finalSom.replace('SOM-G', '');
+        } else {
+            const counter = await Counter.findOne({ _id: 'examResultSeq' });
+            const seqNum = counter ? counter.seq : 1;
+            finalCert = seqNum.toString().padStart(4, '0');
+        }
+    }
+
+    // Calculate totals from subjects
+    const marksObtained = subjectMarks.reduce((sum, s) => sum + Number(s.total || 0), 0);
+    const totalMarks = subjectMarks.reduce((sum, s) => sum + Number(s.maxMarks || 100), 0);
 
     const result = await ExamResult.create({
         student: studentId,
         exam: examId,
         course: student.course,
         batch: student.batch,
-        somNumber,
-        csrNumber,
+        somNumber: finalSom,
+        csrNumber: finalCsr,
+        certificateNumber: finalCert,
+        subjectMarks: subjectMarks.map(s => ({
+            subject: s.subjectId,
+            theory: s.theory,
+            practical: s.practical,
+            total: s.total
+        })),
         marksObtained,
         totalMarks,
         grade,
@@ -63,7 +112,8 @@ const createExamResult = asyncHandler(async (req, res) => {
     const populated = await ExamResult.findById(result._id)
         .populate('student', 'firstName lastName regNo enrollmentNo')
         .populate('course', 'name')
-        .populate('exam', 'examName');
+        .populate('exam', 'examName')
+        .populate('subjectMarks.subject', 'name');
 
     res.status(201).json(populated);
 });
@@ -73,19 +123,52 @@ const createExamResult = asyncHandler(async (req, res) => {
 const updateExamResult = asyncHandler(async (req, res) => {
     const result = await ExamResult.findById(req.params.id);
     if (result) {
-        result.somNumber = req.body.somNumber || result.somNumber;
-        result.csrNumber = req.body.csrNumber || result.csrNumber;
-        result.marksObtained = req.body.marksObtained || result.marksObtained;
-        result.totalMarks = req.body.totalMarks || result.totalMarks;
+        let finalSom = req.body.somNumber || result.somNumber;
+        let finalCsr = req.body.csrNumber || result.csrNumber;
+        let finalCert = req.body.certificateNumber || result.certificateNumber;
+
+        // Auto-correct to CSR- prefix if empty or starting with SOM-
+        if (!finalCsr || finalCsr.startsWith('SOM-')) {
+            if (finalSom.startsWith('SOM-')) {
+                finalCsr = finalSom.replace('SOM-', 'CSR-');
+            } else {
+                finalCsr = `CSR-${finalSom}`;
+            }
+        }
+
+        if (!finalCert) {
+            if (finalSom.startsWith('SOM-G')) {
+                finalCert = finalSom.replace('SOM-G', '');
+            } else {
+                const counter = await Counter.findOne({ _id: 'examResultSeq' });
+                const seqNum = counter ? counter.seq : 1;
+                finalCert = seqNum.toString().padStart(4, '0');
+            }
+        }
+
+        result.somNumber = finalSom;
+        result.csrNumber = finalCsr;
+        result.certificateNumber = finalCert;
         result.grade = req.body.grade || result.grade;
         result.isActive = req.body.isActive !== undefined ? req.body.isActive : result.isActive;
 
+        if (req.body.subjectMarks) {
+            result.subjectMarks = req.body.subjectMarks.map(s => ({
+                subject: s.subjectId || s.subject,
+                theory: s.theory,
+                practical: s.practical,
+                total: s.total
+            }));
+            result.marksObtained = result.subjectMarks.reduce((sum, s) => sum + Number(s.total || 0), 0);
+            result.totalMarks = req.body.subjectMarks.reduce((sum, s) => sum + Number(s.maxMarks || 100), 0);
+        }
+
         const updated = await result.save();
-        // Populate for frontend update
         const populated = await ExamResult.findById(updated._id)
              .populate('student', 'firstName lastName regNo enrollmentNo')
              .populate('course', 'name')
-             .populate('exam', 'examName');
+             .populate('exam', 'examName')
+             .populate('subjectMarks.subject', 'name');
              
         res.json(populated);
     } else {
@@ -93,4 +176,130 @@ const updateExamResult = asyncHandler(async (req, res) => {
     }
 });
 
-module.exports = { getExamResults, createExamResult, updateExamResult };
+// @desc    Delete Exam Result (Soft Delete)
+// @route   DELETE /api/master/exam-result/:id
+const deleteExamResult = asyncHandler(async (req, res) => {
+    const result = await ExamResult.findById(req.params.id);
+    if (result) {
+        result.isDeleted = true;
+        await result.save();
+        res.json({ message: 'Result deleted successfully', id: req.params.id });
+    } else {
+        res.status(404); throw new Error('Result not found');
+    }
+});
+
+// @desc    Get Single Exam Result
+// @route   GET /api/master/exam-result/:id
+const getExamResultById = asyncHandler(async (req, res) => {
+    const result = await ExamResult.findById(req.params.id)
+        .populate('student', 'firstName middleName lastName regNo enrollmentNo mobileStudent studentPhoto dob aadharCard address city state pincode batch')
+        .populate('course', 'name duration durationType shortName')
+        .populate('subjectMarks.subject', 'name')
+        .populate({
+            path: 'exam',
+            select: 'examName timeTable',
+            populate: {
+                path: 'timeTable.subject',
+                select: 'name'
+            }
+        });
+    
+    if (result) {
+        res.json(result);
+    } else {
+        res.status(404); throw new Error('Result not found');
+    }
+});
+
+// @desc    Get Next Available SOM and CSR Numbers
+// @route   GET /api/master/exam-result/next-numbers
+const getNextResultNumbers = asyncHandler(async (req, res) => {
+    let counter = await Counter.findById('examResultSeq');
+    if (!counter) {
+        const count = await ExamResult.countDocuments();
+        counter = await Counter.create({ _id: 'examResultSeq', seq: count });
+    }
+    const nextSeq = counter.seq + 1;
+    const nextSom = `SOM-G${nextSeq.toString().padStart(5, '0')}`;
+    res.json({
+        somNumber: nextSom,
+        csrNumber: nextSom.startsWith('SOM-') ? nextSom.replace('SOM-', 'CSR-') : `CSR-${nextSom}`
+    });
+});
+
+// @desc    Verify Exam Result Publicly
+// @route   POST /api/master/exam-result/verify
+const verifyExamResult = asyncHandler(async (req, res) => {
+    const { email, enrollmentNo } = req.body;
+
+    if (!email || !enrollmentNo) {
+        res.status(400);
+        throw new Error('Email and Enrollment number are required');
+    }
+
+    // Find student with both Email and Enrollment number
+    const student = await Student.findOne({
+        email: { $regex: new RegExp(`^${email.trim()}$`, 'i') },
+        enrollmentNo: { $regex: new RegExp(`^${enrollmentNo.trim()}$`, 'i') },
+        isDeleted: false
+    }).lean();
+
+    if (!student) {
+        res.status(404);
+        throw new Error('No student found with the provided Email and Enrollment number');
+    }
+
+    // Find exam result for this student
+    // User said: "those who student can be exam done and mrksheet complete"
+    // We'll check for isActive results which typically means they are finalized
+    const results = await ExamResult.find({
+        student: student._id,
+        isDeleted: false,
+        isActive: true
+    })
+    .populate('course', 'name duration durationType shortName')
+    .populate('exam', 'examName')
+    .populate('subjectMarks.subject', 'name')
+    .sort({ createdAt: -1 })
+    .lean();
+
+    if (!results || results.length === 0) {
+        res.status(404);
+        throw new Error('No finalized exam results found for this student');
+    }
+
+    // Return the results in a simplified format for public view
+    const publicResults = results.map(res => ({
+        _id: res._id,
+        examName: res.exam?.examName,
+        courseName: res.course?.name,
+        somNumber: res.somNumber,
+        csrNumber: res.csrNumber,
+        certificateNumber: res.certificateNumber,
+        grade: res.grade,
+        percentage: res.percentage,
+        marksObtained: res.marksObtained,
+        totalMarks: res.totalMarks,
+        issueDate: res.createdAt,
+        subjects: res.subjectMarks.map(sm => ({
+            name: sm.subject?.name,
+            theory: sm.theory,
+            practical: sm.practical,
+            total: sm.total
+        }))
+    }));
+
+    res.json({
+        student: {
+            firstName: student.firstName,
+            middleName: student.middleName,
+            lastName: student.lastName,
+            regNo: student.regNo,
+            enrollmentNo: student.enrollmentNo
+        },
+        results: publicResults
+    });
+});
+
+module.exports = { getExamResults, createExamResult, updateExamResult, deleteExamResult, getExamResultById, getNextResultNumbers, verifyExamResult };

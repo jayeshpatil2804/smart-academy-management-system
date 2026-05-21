@@ -2,8 +2,13 @@ export const MENU_CONFIG = [
   {
     title: 'Home',
     path: '/home',
-    type: 'single', // For sidebar
-    subItems: [{ title: 'Admin Home', path: '/admin-dashboard' }] // Added for User Rights mapping (see getMenuSections)
+    type: 'dropdown',
+    subItems: [
+      { title: 'Admin Home', path: '/home' },
+      { title: 'Banner Home', path: '/master/manage-banners' },
+      { title: 'Home Sub-Sections', path: '/master/home-sections' },
+      { title: 'Gallery Manage', path: '/master/gallery' }
+    ]
   },
   {
     title: 'Master',
@@ -45,7 +50,7 @@ export const MENU_CONFIG = [
         type: 'nested',
         subItems: [
           { title: 'Todays Visitors List', path: '/transaction/visitors/todays-list' },
-          { title: 'Todays Visited Report', path: '/transaction/visitors/todays-report' },
+          { title: 'Activity Visitor Report', path: '/transaction/visitors/todays-report' },
           { title: 'Visitors', path: '/transaction/visitors' }
         ]
       },
@@ -96,6 +101,16 @@ export const MENU_CONFIG = [
               { title: 'Student Completion Report', path: '/reports/general/student-completion' },
               { title: 'Student Contact Report', path: '/reports/general/student-contact' },
               { title: 'Student Registration Report', path: '/reports/general/student-registration' },
+              { title: 'Batch Wise Register', path: '/reports/general/batch-wise-register' },
+          ]
+      },
+      { 
+          title: 'Exam Report', 
+          type: 'nested',
+          subItems: [
+              { title: 'Time Table', path: '/reports/exam/time-table' },
+              { title: 'Certificate Issue Register', path: '/reports/exam/certificate-issue-register' },
+              { title: 'Final Result Details', path: '/reports/exam/final-result-details' },
           ]
       }
     ]
@@ -114,7 +129,8 @@ export const MENU_CONFIG = [
     type: 'dropdown',
     subItems: [
       { title: 'Video Call', path: '/connect/video-call' },
-      { title: 'Inquiry List', path: '/connect/inquiry-list' }
+      { title: 'Inquiry List', path: '/connect/inquiry-list' },
+      { title: 'Feedback & Support', path: '/master/feedback' }
     ]
   },
   {
@@ -126,6 +142,7 @@ export const MENU_CONFIG = [
       { title: 'Location', path: '/utility/location' },
       { title: 'Manage Terms', path: '/master/manage-terms' },
       { title: 'Cloudinary Management', path: '/utility/cloudinary-manager' },
+      { title: 'SMS Station', path: '/utility/sms-station' },
       { title: 'Downloads', path: '/utility/downloads' },
     ]
   }

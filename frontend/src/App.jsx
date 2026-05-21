@@ -20,6 +20,7 @@ import Loading from "./components/Loading"; // Import Loading Component
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const StudentLoginPage = lazy(() => import("./pages/StudentLoginPage"));
 const AdminHome = lazy(() => import("./pages/admin/AdminHome"));
 const AboutUsPage = lazy(() => import("./pages/user/AboutUsPage"));
 const WhySmartPage = lazy(() => import("./pages/user/WhySmartPage"));
@@ -33,6 +34,8 @@ const BlogPage = lazy(() => import("./pages/user/BlogPage"));
 const FeedbackPage = lazy(() => import("./pages/user/FeedbackPage"));
 const OnlineAdmission = lazy(() => import("./pages/user/OnlineAdmission"));
 const TermsAndConditions = lazy(() => import("./pages/user/TermsAndConditions"));
+const VerifyStudent = lazy(() => import("./pages/user/VerifyStudent"));
+const PublicResultView = lazy(() => import("./pages/user/PublicResultView"));
 
 // Student Pages
 const StudentHome = lazy(() => import("./pages/student/StudentHome"));
@@ -65,14 +68,20 @@ const ExamRequestList = lazy(() =>
 );
 const ExamSchedule = lazy(() => import("./pages/admin/master/ExamSchedule"));
 const ExamResult = lazy(() => import("./pages/admin/master/ExamResult"));
+const AddEditExamResult = lazy(() => import("./pages/admin/master/AddEditExamResult"));
 const ManageNews = lazy(() => import('./pages/admin/master/ManageNews'));
 const ManageToppers = lazy(() => import('./pages/admin/master/ManageToppers'));
 const ManageTerms = lazy(() => import("./pages/admin/master/ManageTerms"));
+const ManageBanners = lazy(() => import("./pages/admin/master/ManageBanners"));
+const ManageHomeSections = lazy(() => import("./pages/admin/master/ManageHomeSections"));
+const ManageGallery = lazy(() => import("./pages/admin/master/ManageGallery"));
+const ManageFeedback = lazy(() => import("./pages/admin/master/ManageFeedback"));
 const BranchMaster = lazy(() => import("./pages/admin/master/BranchMaster"));
 const Material = lazy(() => import("./pages/admin/master/Material"));
 const FreeLearning = lazy(() => import("./pages/admin/master/FreeLearning"));
 const CloudinaryManager = lazy(() => import("./pages/admin/utility/CloudinaryManager"));
 const LocationMaster = lazy(() => import("./pages/admin/utility/LocationMaster"));
+const SmsStation = lazy(() => import("./pages/admin/utility/SmsStation"));
 
 // Transaction Pages
 const InquiryPage = lazy(() => import("./pages/admin/transaction/InquiryPage"));
@@ -129,6 +138,11 @@ const BlankAdmissionForm = lazy(() => import('./pages/admin/reports/BlankAdmissi
 const StudentCompletionReport = lazy(() => import('./pages/admin/reports/StudentCompletionReport'));
 const StudentContactReport = lazy(() => import('./pages/admin/reports/StudentContactReport'));
 const StudentRegistrationReport = lazy(() => import('./pages/admin/reports/StudentRegistrationReport'));
+const BatchWiseRegister = lazy(() => import('./pages/admin/reports/BatchWiseRegister'));
+const ExamResultPrint = lazy(() => import('./pages/admin/reports/ExamResultPrint'));
+const TimeTableReport = lazy(() => import('./pages/admin/reports/TimeTableReport'));
+const CertificateIssueRegister = lazy(() => import('./pages/admin/reports/CertificateIssueRegister'));
+const FinalResultDetails = lazy(() => import('./pages/admin/reports/FinalResultDetails'));
 
 const PrivateRoute = ({ children }) => {
   const { user } = useSelector((state) => state.auth);
@@ -285,6 +299,22 @@ function App() {
                 }
               />
               <Route
+                path="/master/exam-result/add"
+                element={
+                  <PrivateRoute>
+                    <AddEditExamResult />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/master/exam-result/edit/:id"
+                element={
+                  <PrivateRoute>
+                    <AddEditExamResult />
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/master/manage-news"
                 element={
                   <PrivateRoute>
@@ -308,6 +338,17 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              <Route
+                path="/master/manage-banners"
+                element={
+                  <PrivateRoute>
+                    <ManageBanners />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="/master/home-sections" element={<PrivateRoute><ManageHomeSections /></PrivateRoute>} />
+              <Route path="/master/gallery" element={<PrivateRoute><ManageGallery /></PrivateRoute>} />
+              <Route path="/master/feedback" element={<PrivateRoute><ManageFeedback /></PrivateRoute>} />
               <Route
                 path="/master/branch"
                 element={
@@ -554,6 +595,38 @@ function App() {
                 }
               />
               <Route
+                path="/reports/general/batch-wise-register"
+                element={
+                  <PrivateRoute>
+                    <BatchWiseRegister />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/reports/exam/time-table"
+                element={
+                  <PrivateRoute>
+                    <TimeTableReport />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/reports/exam/certificate-issue-register"
+                element={
+                  <PrivateRoute>
+                    <CertificateIssueRegister />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/reports/exam/final-result-details"
+                element={
+                  <PrivateRoute>
+                    <FinalResultDetails />
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/print/admission-form/:id"
                 element={
                   <PrivateRoute>
@@ -575,6 +648,17 @@ function App() {
                   </PrivateRoute>
                 }
               />
+
+              <Route
+                path="/print/exam-result/:id"
+                element={
+                  <PrivateRoute>
+                    <Suspense fallback={<Loading />}>
+                        <ExamResultPrint />
+                    </Suspense>
+                  </PrivateRoute>
+                }
+              />
               
               <Route
                 path="/utility/cloudinary-manager"
@@ -592,6 +676,16 @@ function App() {
                   <PrivateRoute>
                     <Suspense fallback={<Loading />}>
                         <LocationMaster />
+                    </Suspense>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/utility/sms-station"
+                element={
+                  <PrivateRoute>
+                    <Suspense fallback={<Loading />}>
+                        <SmsStation />
                     </Suspense>
                   </PrivateRoute>
                 }
@@ -634,6 +728,10 @@ function App() {
                 element={user ? <Navigate to={getHomeRoute()} replace /> : <LoginPage />}
               />
               <Route
+                path="/student-login"
+                element={user ? <Navigate to={getHomeRoute()} replace /> : <StudentLoginPage />}
+              />
+              <Route
                 path="/register-admin-zyx"
                 element={
                   user ? <Navigate to={getHomeRoute()} replace /> : <RegisterPage />
@@ -663,6 +761,8 @@ function App() {
                 <Route path="/feedback" element={<FeedbackPage />} />
                 <Route path="/online-admission" element={<OnlineAdmission />} />
                 <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="/verify-student" element={<VerifyStudent />} />
+                <Route path="/result" element={<PublicResultView />} />
               </Route>
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

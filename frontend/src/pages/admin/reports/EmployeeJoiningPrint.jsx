@@ -94,29 +94,29 @@ const EmployeeJoiningPrint = () => {
                     <div className="border-t border-black mb-6"></div>
 
                     {/* Centered Title */}
-                    <div className="flex justify-center mb-8">
-                        <div className="border-2 border-black p-0.5">
-                            <div className="bg-black text-white px-10 py-1.5 text-lg font-bold uppercase tracking-[0.2em]">
-                                Agreement of Joining
-                            </div>
+                    <div className="flex justify-center mb-6">
+                        <div className="bg-black text-white inline-block px-8 py-1.5 font-bold text-sm rounded-sm uppercase tracking-wider shadow-sm">
+                            Agreement of Joining
                         </div>
                     </div>
 
                     {/* Passport Photo Placeholder */}
-                    <div className="absolute right-10 top-48 w-32 h-40 border border-black flex items-center justify-center bg-gray-50 z-10">
+                    <div className="absolute right-10 top-40 w-32 h-40 border border-black flex items-center justify-center bg-gray-50 z-10 overflow-hidden">
                         {employee?.photo ? (
                             <img 
-                                src={employee.photo.startsWith('http') ? employee.photo : `http://localhost:5000/${employee.photo}`} 
+                                src={employee.photo.startsWith('http') ? employee.photo : `${import.meta.env.VITE_API_URL.replace('/api', '')}/${employee.photo}`} 
                                 alt="Employee" 
                                 className="w-full h-full object-cover"
+                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
                             />
-                        ) : (
-                            <div className="text-[9px] text-gray-400 font-bold text-center p-4 uppercase">Affix Recent Passport Size Photograph</div>
-                        )}
+                        ) : null}
+                        <div className={`text-[9px] text-gray-400 font-bold text-center p-4 uppercase ${employee?.photo ? 'hidden' : 'flex'} flex-col items-center justify-center w-full h-full`}>
+                            Affix Recent Passport Size Photograph
+                        </div>
                     </div>
 
                     {/* Metadata Grid */}
-                    <div className="grid grid-cols-1 gap-y-5 text-[13px] w-2/3 mb-10">
+                    <div className="grid grid-cols-1 gap-y-5 text-[13px] w-2/3 mb-16">
                         <div className="flex gap-2">
                             <span className="font-bold min-w-[100px]">Staff Code:</span>
                             <Editable value={employee?.regNo} className="flex-grow border-b border-black font-bold" />
@@ -156,7 +156,7 @@ const EmployeeJoiningPrint = () => {
                         </div>
 
                         {/* Reference Details */}
-                        <div className="pt-4 flex gap-8 items-end border-t border-dotted border-gray-300">
+                        <div className="pt-4 flex gap-8 items-end border-t border-dotted border-black">
                             <div className="flex gap-2 items-end flex-grow">
                                 <span className="font-bold whitespace-nowrap">REFERENCE NAME:</span>
                                 <Editable value={employee?.referName} className="flex-grow border-b border-black font-bold uppercase" />
@@ -172,22 +172,22 @@ const EmployeeJoiningPrint = () => {
                     <div className="mt-12 border-t border-black pt-4">
                         <h4 className="font-bold underline mb-3 text-[14px]">Terms & Conditions of Employment:</h4>
                         <ul className="list-decimal ml-6 space-y-2 text-[11px] text-justify leading-snug">
-                            <li>Identity card must be worn at all times during duty hours (08:00 AM to 09:00 PM).</li>
-                            <li>Incentives are strictly performance-based and calculated at the end of each calendar month.</li>
-                            <li>Incentive structure: 2.80% of the total course fees collected per student enrollment.</li>
-                            <li>No conveyance allowance will be provided. Advance salary or incentives are not permitted.</li>
-                            <li>Incentive will be payable as per student paid fees amount at the end of Month.</li>
-                            <li>In case of any absence/leave, submit a formal leave application for approval.</li>
-                            <li>Promotion and designation upgrades are solely based on periodic performance reviews.</li>
-                            <li>The management reserves the right to suspend employment for any violation of institute policy.</li>
-                            <li>Mandatory commitment period: <CheckBox label="1 Year Training" /> <CheckBox label="2 Year Job" /></li>
-                            <li>We will not accept any type of claim or legal action for our management.</li>
-                            <li>Compliance with all <span className="font-bold">SMART Institute</span> internal rules is mandatory.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Identity card must be worn at all times during duty hours (08:00 AM to 09:00 PM).</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Incentives are strictly performance-based and calculated at the end of each calendar month.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Incentive structure: 2.80% of the total course fees collected per student enrollment.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">No conveyance allowance will be provided. Advance salary or incentives are not permitted.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Incentive will be payable as per student paid fees amount at the end of Month.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">In case of any absence/leave, submit a formal leave application for approval.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Promotion and designation upgrades are solely based on periodic performance reviews.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">The management reserves the right to suspend employment for any violation of institute policy.</li>
+                            <li><span contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Mandatory commitment period:</span> <CheckBox label="1 Year Training" /> <CheckBox label="2 Year Job" /></li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">We will not accept any type of claim or legal action for our management.</li>
+                            <li contentEditable suppressContentEditableWarning className="outline-none focus:bg-yellow-50">Compliance with all <span className="font-bold">SMART Institute</span> internal rules is mandatory.</li>
                         </ul>
                     </div>
 
                     {/* Declaration */}
-                    <div className="mt-10 text-[12px] leading-relaxed italic border-l-4 border-gray-300 pl-4">
+                    <div className="mt-10 pb-32 text-[12px] leading-relaxed italic">
                         <p>
                             I, <Editable value={employee.name?.toUpperCase()} className="min-w-[200px] border-b border-black font-bold not-italic" />, 
                             hereby declare that the information provided above is true to the best of my knowledge. 
@@ -197,12 +197,12 @@ const EmployeeJoiningPrint = () => {
                     </div>
 
                     {/* Footer / Signatures */}
-                    <div className="absolute bottom-10 left-6 right-6 flex justify-between items-end font-bold text-[12px]">
-                        <div className="text-center">
-                            <div className="w-40 border-t border-black pt-1">Employee Signature</div>
+                    <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
+                        <div className="text-center w-40 border-t border-black pt-1 font-bold text-sm">
+                            Employee Signature
                         </div>
-                        <div className="text-center">
-                            <div className="w-40 border-t border-black pt-1">Managing Director</div>
+                        <div className="text-center w-40 border-t border-black pt-1 font-bold text-sm">
+                            Managing Director
                         </div>
                     </div>
 

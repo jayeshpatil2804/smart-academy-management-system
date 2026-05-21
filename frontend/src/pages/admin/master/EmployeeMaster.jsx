@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { useForm } from 'react-hook-form';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee, resetEmployeeStatus } from '../../../features/employee/employeeSlice';
@@ -8,6 +9,7 @@ import { formatInputText } from '../../../utils/textFormatter';
 import { toast } from 'react-toastify';
 import { Search, Plus, X, Upload, User, Briefcase, Lock, Trash2, Edit, RotateCcw, Loader, Printer } from 'lucide-react';
 import ProfileImageUploader from '../../../components/common/ProfileImageUploader';
+import Swal from 'sweetalert2';
 
 import { useUserRights } from '../../../hooks/useUserRights';
 import { useNavigate } from 'react-router-dom';
@@ -54,6 +56,65 @@ const EmployeeMaster = () => {
     pageSize: 10
   };
   const [filters, setFilters] = useState(initialFilters);
+
+  // --- AUTOCOMPLETE SUGGESTIONS STATE ---
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const suggestionsRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+      const handleClickOutside = (event) => {
+          if (suggestionsRef.current && !suggestionsRef.current.contains(event.target)) {
+              setIsSuggestionsOpen(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch suggestions when search value or search by changes
+  useEffect(() => {
+      const fetchSuggestions = async () => {
+          setIsLoadingSuggestions(true);
+          try {
+              const API_URL = `${import.meta.env.VITE_API_URL}/employees/`;
+              const params = {
+                  searchBy: filters.searchBy,
+                  searchValue: filters.searchValue,
+                  pageSize: 50
+              };
+              const { data } = await axios.get(API_URL, { params, withCredentials: true });
+              const list = Array.isArray(data) ? data : (data.employees || []);
+              setSuggestions(list);
+          } catch (err) {
+              console.error("Failed to fetch suggestions", err);
+              setSuggestions([]);
+          } finally {
+              setIsLoadingSuggestions(false);
+          }
+      };
+
+      const timer = setTimeout(() => {
+          if (isSuggestionsOpen) {
+              fetchSuggestions();
+          }
+      }, 300);
+
+      return () => clearTimeout(timer);
+  }, [filters.searchValue, filters.searchBy, isSuggestionsOpen]);
+
+  const handleSuggestionSelect = (emp) => {
+      let val = emp.name;
+      if (filters.searchBy === 'email') val = emp.email;
+      if (filters.searchBy === 'mobile') val = emp.mobile;
+      
+      const updatedFilters = { ...filters, searchValue: val };
+      setFilters(updatedFilters);
+      setIsSuggestionsOpen(false);
+      dispatch(fetchEmployees(updatedFilters));
+  };
 
   useEffect(() => {
     dispatch(fetchEmployees(filters));
@@ -178,10 +239,28 @@ const EmployeeMaster = () => {
   };
 
   const handleDelete = (id) => {
-      if(!canDelete) return;
-      if(window.confirm("Are you sure you want to delete this employee?")) {
-          dispatch(deleteEmployee(id));
+      if(!canDelete) {
+          Swal.fire({
+              title: 'Access Denied',
+              text: "You don't have permission to delete employees.",
+              icon: 'error',
+              confirmButtonColor: '#d33',
+          });
+          return;
       }
+      Swal.fire({
+          title: 'Are you sure?',
+          text: "You want to permanently delete this employee? This action cannot be undone.",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it!'
+      }).then((result) => {
+          if (result.isConfirmed) {
+              dispatch(deleteEmployee(id));
+          }
+      });
   };
 
   const handlePrint = (emp) => {
@@ -269,8 +348,11 @@ const EmployeeMaster = () => {
                     <label className="text-xs text-gray-500 font-semibold mb-1 block">Search By</label>
                     <select 
                         value={filters.searchBy} 
-                        onChange={e => setFilters({...filters, searchBy: e.target.value})} 
-                        className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-primary"
+                        onChange={e => {
+                            setFilters({...filters, searchBy: e.target.value, searchValue: ''});
+                            setIsSuggestionsOpen(false);
+                        }} 
+                        className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
                     >
                         <option value="name">Employee Name</option>
                         <option value="email">Email ID</option>
@@ -279,15 +361,81 @@ const EmployeeMaster = () => {
                 </div>
 
                 {/* Search Value */}
-                <div>
+                <div className="relative" ref={suggestionsRef}>
                     <label className="text-xs text-gray-500 font-semibold mb-1 block">Value</label>
-                    <input 
-                        type="text" 
-                        placeholder="Search..."
-                        value={filters.searchValue} 
-                        onChange={e => setFilters({...filters, searchValue: e.target.value})} 
-                        className="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-primary"
-                    />
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            placeholder={`Search by ${filters.searchBy === 'name' ? 'Employee Name' : filters.searchBy === 'email' ? 'Email ID' : 'Mobile Number'}...`}
+                            value={filters.searchValue} 
+                            onChange={e => {
+                                setFilters({...filters, searchValue: e.target.value});
+                                setIsSuggestionsOpen(true);
+                            }}
+                            onFocus={() => setIsSuggestionsOpen(true)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                    setIsSuggestionsOpen(false);
+                                    dispatch(fetchEmployees(filters));
+                                }
+                            }}
+                            className="w-full border p-2 pr-8 rounded text-sm outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
+                        />
+                        {filters.searchValue && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const updated = { ...filters, searchValue: '' };
+                                    setFilters(updated);
+                                    dispatch(fetchEmployees(updated));
+                                    setIsSuggestionsOpen(false);
+                                }}
+                                className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 transition"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Suggestions Dropdown */}
+                    {isSuggestionsOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-gray-100 animate-fadeIn">
+                            {isLoadingSuggestions ? (
+                                <div className="p-3 text-center text-xs text-gray-400 flex items-center justify-center gap-2">
+                                    <Loader className="animate-spin w-4 h-4 text-primary" /> Loading suggestions...
+                                </div>
+                            ) : suggestions.length > 0 ? (
+                                suggestions.map(emp => (
+                                    <div
+                                        key={emp._id}
+                                        onClick={() => handleSuggestionSelect(emp)}
+                                        className="p-2.5 hover:bg-blue-50 cursor-pointer transition flex justify-between items-center text-xs group"
+                                    >
+                                        <div>
+                                            <div className="font-semibold text-gray-800 group-hover:text-primary">
+                                                {filters.searchBy === 'name' && emp.name}
+                                                {filters.searchBy === 'email' && emp.email}
+                                                {filters.searchBy === 'mobile' && emp.mobile}
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 mt-0.5">
+                                                {filters.searchBy !== 'name' && <span>{emp.name} • </span>}
+                                                {filters.searchBy !== 'email' && <span>{emp.email} • </span>}
+                                                {filters.searchBy !== 'mobile' && <span>{emp.mobile}</span>}
+                                                <span> ({emp.type})</span>
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] bg-gray-100 group-hover:bg-blue-100 group-hover:text-blue-700 px-2 py-0.5 rounded text-gray-600 font-medium">
+                                            Select
+                                        </span>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-3 text-center text-xs text-gray-400">
+                                    No matching employees found
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

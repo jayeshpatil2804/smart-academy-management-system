@@ -33,7 +33,7 @@ const EmployeeDashboard = () => {
             <div className="bg-gradient-to-r from-blue-900 to-slate-900 rounded-2xl p-8 mb-8 text-white shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-accent/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4"></div>
-                
+
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div>
                         <div className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
@@ -44,7 +44,7 @@ const EmployeeDashboard = () => {
                         </h1>
                         <p className="text-blue-200 text-lg">Welcome to Smart Institute Portal</p>
                     </div>
-                    
+
                     <div className="flex flex-col items-end text-right bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10 w-full md:w-auto">
                         <div className="text-3xl font-mono font-bold tracking-widest">
                             {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
