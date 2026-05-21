@@ -77,7 +77,7 @@ const StudentWiseOutstanding = () => {
             if (cancelled) return;
             const map = {};
             results.forEach((r) => {
-                map[r.id] = { outstandingAmount: r.outstandingAmount ?? 0, dueAmount: r.dueAmount ?? 0 };
+                map[r.id] = r;
             });
             setPaymentSummaryMap(map);
             setSummaryLoading(false);
@@ -323,9 +323,21 @@ const StudentWiseOutstanding = () => {
                                     <td className="border border-gray-300 px-2 py-1.5">{s.course?.shortName || s.course?.name || '-'}</td>
                                     <td className="border border-gray-300 px-2 py-1.5 text-center">{s.mobileParent || '-'}</td>
 
-                                    {/* Outstanding Amount (same logic as FeeCollection - reg + upcoming EMI or reg only) */}
+                                    {/* Outstanding Amount (Breakdown: (EMI + Reg) + Admission) */}
                                     <td className="border border-gray-300 px-2 py-1.5 text-right font-semibold text-red-600">
-                                        {summaryLoading ? '...' : (outstandingAmount > 0 ? formatAmount(outstandingAmount) : '-')}
+                                        {summaryLoading ? '...' : (() => {
+                                            const regEmi = (summary?.upcomingEMI || 0) + (summary?.pendingRegFees || 0);
+                                            const adm = summary?.pendingAdmissionFees || 0;
+                                            
+                                            if (regEmi > 0 && adm > 0) {
+                                                return `${regEmi.toLocaleString('en-IN')} + ${adm.toLocaleString('en-IN')}`;
+                                            } else if (regEmi > 0) {
+                                                return regEmi.toLocaleString('en-IN');
+                                            } else if (adm > 0) {
+                                                return adm.toLocaleString('en-IN');
+                                            }
+                                            return '-';
+                                        })()}
                                     </td>
 
                                     {/* Follow Up Columns */}

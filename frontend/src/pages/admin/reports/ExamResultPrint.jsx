@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import moment from 'moment';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Import Assets
 import frame from '../../../assets/FRAME.png';
@@ -357,12 +358,9 @@ const ExamResultPrint = () => {
                             </div>
 
                             {/* Date of issue and CSR number positioned dynamically in the fluid blank area with zero overlap */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8mm', width: '100%', fontFamily: 'Arial, sans-serif', color: '#000' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginTop: '8mm', width: '100%', fontFamily: 'Arial, sans-serif', color: '#000' }}>
                                 <div style={{ fontSize: '3.6mm', fontWeight: '900' }}>
                                     Date of issue : {issueDate.isValid() ? issueDate.format('DD MMMM YYYY') : '15 May 2019'}
-                                </div>
-                                <div style={{ fontSize: '3.6mm', fontWeight: '900', color: '#135CB3', marginRight: '35mm' }}>
-                                    CSR. NO.: {result.csrNumber || 'SOM-G0035'}
                                 </div>
                             </div>
 
@@ -372,6 +370,46 @@ const ExamResultPrint = () => {
                     <>
                         {/* Background pre-printed template image */}
                         <img src={certificateImg} alt="Certificate Template Background" className="bg-img" />
+
+                        {/* QR Code positioned on the left side of "Certificate" word (which is in background) */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '80mm',
+                            left: '24mm',
+                            zIndex: 30,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center'
+                        }}>
+                            <div style={{
+                                backgroundColor: '#fff',
+                                padding: '1.2mm',
+                                border: '1.2px solid #8e6c1a', // Gold border matching photo frame
+                                borderRadius: '1mm',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}>
+                                <QRCodeSVG 
+                                    value={`${window.location.origin}/print/exam-result/${id}?type=Certificate`}
+                                    size={70} // Optimized size for scanning and aesthetics
+                                    level="H"
+                                    includeMargin={false}
+                                />
+                            </div>
+                            <span style={{ 
+                                fontSize: '1.8mm', 
+                                fontWeight: '900', 
+                                color: '#000', // Changed to black for better contrast outside border
+                                marginTop: '1.2mm',
+                                fontFamily: 'Arial, sans-serif',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.2px'
+                            }}>
+                                Scan to Verify
+                            </span>
+                        </div>
 
                         {/* Photo Box positioned absolutely on top-right */}
                         <div style={{

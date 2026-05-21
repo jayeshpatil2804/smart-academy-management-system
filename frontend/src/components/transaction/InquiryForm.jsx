@@ -108,6 +108,8 @@ const InquiryForm = ({ mode, initialData, onClose, onSave }) => {
                 const formattedData = {
                     ...initialData,
                     interestedCourse: initialData.interestedCourse?._id || initialData.interestedCourse,
+                    branchId: initialData.branchId?._id || initialData.branchId,
+                    allocatedTo: initialData.allocatedTo?._id || initialData.allocatedTo,
                     inquiryDate: initialData.inquiryDate ? initialData.inquiryDate.split('T')[0] : '',
                     dob: initialData.dob ? initialData.dob.split('T')[0] : '',
                     followUpDate: initialData.followUpDate ? new Date(initialData.followUpDate).toISOString().split('T')[0] : '',
@@ -126,14 +128,9 @@ const InquiryForm = ({ mode, initialData, onClose, onSave }) => {
                     setPreview(initialData.studentPhoto);
                 }
 
-                if (initialData.branchId) {
-                    // Check if branchId is an object and extract _id, otherwise use it as is
-                    setValue('branchId', (typeof initialData.branchId === 'object' ? initialData.branchId._id : initialData.branchId));
-                }
-
                 reset({
                     ...formattedData,
-                    // If branchId was part of initialData and populated, we need to ensure the form gets the ID string
+                    // Ensure branchId is an ID string
                     branchId: initialData.branchId ? (typeof initialData.branchId === 'object' ? initialData.branchId._id : initialData.branchId) : ''
                 });
             }
@@ -190,17 +187,28 @@ const InquiryForm = ({ mode, initialData, onClose, onSave }) => {
         Object.keys(data).forEach(key => {
             if (key === 'studentPhoto' && data[key] instanceof File) {
                 formData.append('studentPhoto', data[key]);
-            } else if (key === 'referenceDetail' && typeof data[key] === 'object') {
+            } else if (key === 'referenceDetail' && typeof data[key] === 'object' && data[key] !== null) {
                 formData.append('referenceDetail', JSON.stringify(data[key]));
+            } else if (key === 'followUpHistory' || key === 'allocatedTo' || key === 'branchId' || key === 'interestedCourse' || key === 'visitorId') {
+                // For IDs and arrays, ensure we only send them if they are not objects (unless handled above)
+                if (typeof data[key] === 'object' && data[key] !== null && !(data[key] instanceof File)) {
+                    if (data[key]._id) {
+                        formData.append(key, data[key]._id);
+                    } else if (Array.isArray(data[key])) {
+                        formData.append(key, JSON.stringify(data[key]));
+                    }
+                } else if (data[key] !== undefined && data[key] !== null) {
+                    formData.append(key, data[key]);
+                }
             } else if (data[key] !== undefined && data[key] !== null && key !== 'studentPhoto' && key !== 'followUpTime') {
-                formData.append(key, data[key]);
+                // For all other fields, only append if they are not objects or are specifically handled
+                if (typeof data[key] !== 'object') {
+                    formData.append(key, data[key]);
+                }
             }
         });
 
         // Handle specific logic
-        if (initialData?._id && !initialData.isConversion) formData.append('_id', initialData._id);
-
-        // Create final FormData
         if (initialData?._id && !initialData.isConversion) formData.append('_id', initialData._id);
 
         // Ensure source is set

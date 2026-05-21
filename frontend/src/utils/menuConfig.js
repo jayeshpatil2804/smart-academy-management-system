@@ -142,6 +142,7 @@ export const MENU_CONFIG = [
       { title: 'Location', path: '/utility/location' },
       { title: 'Manage Terms', path: '/master/manage-terms' },
       { title: 'Cloudinary Management', path: '/utility/cloudinary-manager' },
+      { title: 'SMS Station', path: '/utility/sms-station' },
       { title: 'Downloads', path: '/utility/downloads' },
     ]
   }

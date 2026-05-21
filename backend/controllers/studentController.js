@@ -235,15 +235,17 @@ const createStudent = asyncHandler(async (req, res) => {
         const contacts = [...new Set([student.mobileStudent, student.mobileParent, student.contactHome].filter(Boolean))]; 
         
         // Always send Welcome SMS (Enrollment)
-        await Promise.all(contacts.map(num => sendSMS(num, smsMessage)))
+        await Promise.all(contacts.map(num => sendSMS(num, smsMessage, 'Admission')))
             .then(() => console.log('Admission Welcome SMS sent successfully'))
             .catch(err => console.error('Admission Welcome SMS failed', err));
 
         if (isAdmissionFeesPaid) {
+            // Wait 2 seconds before sending the Fee SMS to ensure Enrollment SMS arrives first
+            await new Promise(resolve => setTimeout(resolve, 2000));
             // Send Fee SMS (Admission Fee)
             const feeSmsMessage = `Dear, ${fullName}. Your Course fees ${feeDetails.amount} has been deposited for Admission Fees, Reg.No. ${student.enrollmentNo || 'N/A'}. Thank you,\nSmart Institute`;
             console.log(`Sending Admission Fee SMS to: ${contacts.join(', ')} | Msg: ${feeSmsMessage}`);
-            await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage)))
+            await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage, 'Fees')))
                 .catch(err => console.error('Admission Fee SMS failed', err));
         }
 
@@ -411,14 +413,16 @@ const confirmStudentRegistration = asyncHandler(async (req, res) => {
         
             if (student.mobileStudent) {
                 const regMessage = `Dear, ${student.firstName} ${student.lastName}. Your Registration process has been successfully completed. Reg.No. ${finalRegNo}, User ID-${username}, Password-${password}, smart institute.`;
-                await sendSMS(student.mobileStudent, regMessage)
+                await sendSMS(student.mobileStudent, regMessage, 'Admission')
                     .catch(err => console.error('Registration SMS failed', err));
             }
         
             // Send Fee SMS (Registration Fee)
             if (feeDetails && Number(feeDetails.amount) > 0) {
+                // Wait 2 seconds before sending the Fee SMS to ensure Registration SMS arrives first
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 const feeSmsMessage = `Dear, ${student.firstName} ${student.middleName ? student.middleName + ' ' : ''}${student.lastName}. Your Course fees ${feeDetails.amount} has been deposited for Registration Fees, Reg.No. ${finalRegNo}. Thank you,\nSmart Institute`;
-                await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage)))
+                await Promise.all(contacts.map(num => sendSMS(num, feeSmsMessage, 'Fees')))
                     .catch(err => console.error('Registration Fee SMS failed', err));
             }
         
@@ -660,7 +664,7 @@ const resetStudentLogin = asyncHandler(async (req, res) => {
 
     if (student.mobileStudent) {
         const msg = `Dear ${student.firstName}, your login details have been updated. User ID: ${user.username}, Password: ${password || '(Unchanged)'}. Smart Institute.`;
-        sendSMS(student.mobileStudent, msg).catch(err => console.error('Reset Login SMS failed', err));
+        sendSMS(student.mobileStudent, msg, 'General').catch(err => console.error('Reset Login SMS failed', err));
     }
 
     res.json({ message: 'Login details updated successfully', username: user.username });

@@ -186,7 +186,7 @@ const createEmployee = asyncHandler(async (req, res) => {
 
         if (userId && loginUsername) {
              const message = `Dear, ${name}. Your Registration process has been successfully completed. User ID-${loginUsername}, Password-${loginPassword}, smart institute.`;
-             sendSMS(mobile, message);
+             sendSMS(mobile, message, 'General');
         }
 
         // Populate branchId for the immediate response

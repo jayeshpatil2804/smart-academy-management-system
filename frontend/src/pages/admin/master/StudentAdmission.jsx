@@ -173,6 +173,10 @@ const StudentAdmission = () => {
       setValue("address", inquiry.address || "");
       setValue("state", inquiry.state || "Gujarat");
       setValue("city", inquiry.city || "Surat");
+      setValue("occupationType", inquiry.occupationType || "Student");
+      setValue("occupationName", inquiry.occupationName || "");
+      setValue("motherName", inquiry.motherName || "");
+      setValue("pincode", inquiry.pincode || "");
       setValue("education", inquiry.education || "");
       setValue("dob", inquiry.dob ? new Date(inquiry.dob).toISOString().split('T')[0] : "");
       setValue("reference", inquiry.referenceBy || "Direct");
@@ -223,6 +227,8 @@ const StudentAdmission = () => {
       setValue("contactHome", profile.contactHome || "", { shouldValidate: true });
       setValue("reference", profile.reference || "Direct", { shouldValidate: true });
       setValue("remarks", profile.remarks || "", { shouldValidate: true });
+      setValue("relationType", "Father", { shouldValidate: true });
+      setValue("occupationType", "Student", { shouldValidate: true });
       
       if (profile.branchId) {
         setValue("branchId", profile.branchId._id || profile.branchId, { shouldValidate: true });
@@ -536,6 +542,8 @@ const StudentAdmission = () => {
         setValue("contactHome", profile.contactHome || "", { shouldValidate: true });
         setValue("reference", profile.reference || "Direct", { shouldValidate: true });
         setValue("remarks", profile.remarks || "", { shouldValidate: true });
+        setValue("relationType", "Father", { shouldValidate: true });
+        setValue("occupationType", "Student", { shouldValidate: true });
         
         if (profile.branchId) {
           setValue("branchId", profile.branchId._id || profile.branchId, { shouldValidate: true });
@@ -557,12 +565,17 @@ const StudentAdmission = () => {
         setValue("firstName", profile.firstName, { shouldValidate: true });
         setValue("lastName", profile.lastName, { shouldValidate: true });
         setValue("middleName", profile.middleName || "", { shouldValidate: true });
+        setValue("relationType", profile.relationType || "Father", { shouldValidate: true });
         setValue("email", profile.email || "", { shouldValidate: true });
         setValue("gender", profile.gender || "Male", { shouldValidate: true });
         setValue("mobileParent", profile.contactParent || "", { shouldValidate: true });
         setValue("mobileStudent", profile.contactStudent || "", { shouldValidate: true });
         setValue("contactHome", profile.contactHome || "", { shouldValidate: true });
         setValue("address", profile.address || "", { shouldValidate: true });
+        setValue("occupationType", profile.occupationType || "Student", { shouldValidate: true });
+        setValue("occupationName", profile.occupationName || "", { shouldValidate: true });
+        setValue("motherName", profile.motherName || "", { shouldValidate: true });
+        setValue("pincode", profile.pincode || "", { shouldValidate: true });
         
         if (profile.state) {
             setValue("state", profile.state, { shouldValidate: true });

@@ -315,8 +315,27 @@ const FeeCollection = () => {
                             />
                             {errors.amountPaid && <p className="text-red-500 text-xs mt-1">{errors.amountPaid.message}</p>}
                              {paymentSummary && (
-                                <p className="text-xs text-red-500 mt-1 font-semibold">
-                                    Outstanding: ₹{paymentSummary.outstandingAmount} | Total Due: ₹{paymentSummary.dueAmount}
+                                <p className="text-xs text-red-500 mt-1 font-semibold flex flex-wrap gap-x-3">
+                                    <span>
+                                        Outstanding: {(() => {
+                                            const regEmi = (paymentSummary.upcomingEMI || 0) + (paymentSummary.pendingRegFees || 0);
+                                            const adm = paymentSummary.pendingAdmissionFees || 0;
+                                            if (regEmi > 0 && adm > 0) return `₹${regEmi.toLocaleString('en-IN')} + ${adm.toLocaleString('en-IN')}`;
+                                            if (regEmi > 0) return `₹${regEmi.toLocaleString('en-IN')}`;
+                                            if (adm > 0) return `₹${adm.toLocaleString('en-IN')}`;
+                                            return '₹0';
+                                        })()}
+                                    </span>
+                                    <span className="text-gray-300">|</span>
+                                    <span>
+                                        Total Due: {(() => {
+                                            const totalDue = paymentSummary.dueAmount || 0;
+                                            const pendingAdm = paymentSummary.pendingAdmissionFees || 0;
+                                            const pendingCourse = Math.max(0, totalDue - pendingAdm);
+                                            if (pendingCourse > 0 && pendingAdm > 0) return `₹${pendingCourse.toLocaleString('en-IN')} + ${pendingAdm.toLocaleString('en-IN')}`;
+                                            return `₹${totalDue.toLocaleString('en-IN')}`;
+                                        })()}
+                                    </span>
                                 </p>
                             )}                        </div>
                         {/* Payment Mode */}
@@ -425,6 +444,9 @@ const FeeCollection = () => {
                                     <p className="text-sm text-purple-600 font-medium mt-1">
                                         {selectedStudent.course?.name || 'N/A'}
                                     </p>
+                                    <div className="mt-2 text-[10px] text-gray-500 font-bold uppercase tracking-widest bg-gray-100 py-1 rounded">
+                                        Total Fees: ₹{paymentSummary.courseFee?.toLocaleString('en-IN')} + ₹{paymentSummary.admissionFee?.toLocaleString('en-IN')}
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3 w-full">
@@ -433,12 +455,37 @@ const FeeCollection = () => {
                                         <p className="text-lg font-bold text-green-700">₹{paymentSummary.totalReceived?.toLocaleString('en-IN')}</p>
                                     </div>
                                     <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 text-center">
-                                        <p className="text-[10px] text-orange-600 uppercase font-bold tracking-wider">Due</p>
-                                        <p className="text-lg font-bold text-orange-700">₹{paymentSummary.dueAmount?.toLocaleString('en-IN')}</p>
+                                        <p className="text-[10px] text-orange-600 uppercase font-bold tracking-wider">Total Due</p>
+                                        <p className="text-lg font-bold text-orange-700">
+                                            {(() => {
+                                                const totalDue = paymentSummary.dueAmount || 0;
+                                                const pendingAdm = paymentSummary.pendingAdmissionFees || 0;
+                                                const pendingCourse = Math.max(0, totalDue - pendingAdm);
+                                                
+                                                if (pendingCourse > 0 && pendingAdm > 0) {
+                                                    return `₹${pendingCourse.toLocaleString('en-IN')} + ${pendingAdm.toLocaleString('en-IN')}`;
+                                                }
+                                                return `₹${totalDue.toLocaleString('en-IN')}`;
+                                            })()}
+                                        </p>
                                     </div>
                                     <div className="bg-red-50 p-3 rounded-lg border border-red-100 text-center col-span-2">
-                                        <p className="text-[10px] text-red-600 uppercase font-bold tracking-wider">Total Outstanding</p>
-                                        <p className="text-2xl font-bold text-red-700">₹{paymentSummary.outstandingAmount?.toLocaleString('en-IN')}</p>
+                                        <p className="text-[10px] text-red-600 uppercase font-bold tracking-wider">Current Outstanding</p>
+                                        <p className="text-2xl font-bold text-red-700">
+                                            {(() => {
+                                                const regEmi = (paymentSummary.upcomingEMI || 0) + (paymentSummary.pendingRegFees || 0);
+                                                const adm = paymentSummary.pendingAdmissionFees || 0;
+                                                
+                                                if (regEmi > 0 && adm > 0) {
+                                                    return `₹${regEmi.toLocaleString('en-IN')} + ${adm.toLocaleString('en-IN')}`;
+                                                } else if (regEmi > 0) {
+                                                    return `₹${regEmi.toLocaleString('en-IN')}`;
+                                                } else if (adm > 0) {
+                                                    return `₹${adm.toLocaleString('en-IN')}`;
+                                                }
+                                                return '₹0';
+                                            })()}
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded text-center w-full mt-3 text-xs text-gray-500 border border-gray-100">

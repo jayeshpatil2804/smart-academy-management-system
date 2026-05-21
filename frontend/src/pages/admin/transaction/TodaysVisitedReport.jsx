@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Edit, Trash2, ArrowRightCircle, Printer, Eye, GraduationCap } from 'lucide-react';
+import { FileText, Search, Edit, Trash2, ArrowRightCircle, Printer, Eye, GraduationCap, PhoneCall, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../../utils/dateUtils';
 import visitorService from '../../../services/visitorService';
@@ -7,6 +7,110 @@ import { toast } from 'react-toastify';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
 import VisitorViewModal from '../../../components/transaction/VisitorViewModal';
+import InquiryForm from '../../../components/transaction/InquiryForm';
+import InquiryViewModal from '../../../components/transaction/InquiryViewModal';
+import { useForm } from 'react-hook-form';
+import TimePicker12Hour from '../../../components/common/TimePicker12Hour';
+
+// --- SUB-COMPONENT: Follow Up Form ---
+const FollowUpForm = ({ inquiry, onClose, onSave }) => {
+    const navigate = useNavigate();
+
+    const getCurrentTime = () => {
+        const now = new Date();
+        return now.toTimeString().slice(0, 5);
+    };
+
+    const [selectedStatus, setSelectedStatus] = useState(inquiry.status || 'Open');
+
+    const { register, handleSubmit, watch, setValue } = useForm({
+        defaultValues: {
+            status: inquiry.status || 'Open',
+            newRemarks: '',
+            fDate: inquiry.followUpDate ? new Date(inquiry.followUpDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            fTime: inquiry.followUpDate ? new Date(inquiry.followUpDate).toTimeString().slice(0, 5) : getCurrentTime(),
+        }
+    });
+
+    const statusValue = watch('status');
+    useEffect(() => {
+        setSelectedStatus(statusValue);
+    }, [statusValue]);
+
+    const onSubmit = async (data) => {
+        let fDate = null;
+        if (data.fDate) {
+            const time = data.fTime || '00:00';
+            fDate = new Date(`${data.fDate}T${time}`);
+        }
+
+        const finalDetails = data.newRemarks ? (inquiry.followUpDetails ? `${inquiry.followUpDetails}\n[${formatDate(fDate)}]: ${data.newRemarks}` : `[${formatDate(fDate)}]: ${data.newRemarks}`) : inquiry.followUpDetails;
+
+        const updateData = {
+            status: data.status,
+            followUpDetails: finalDetails,
+            followUpDate: fDate,
+            newRemarks: data.newRemarks,
+        };
+
+        await onSave({ id: inquiry._id, data: updateData });
+
+        if (data.status === 'Complete') {
+            setTimeout(() => {
+                navigate('/master/student/new', {
+                    state: { inquiryData: inquiry }
+                });
+            }, 500);
+        } else {
+            onClose();
+        }
+    };
+
+    const { loading } = useSelector((state) => state.transaction || { loading: false });
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-xl animate-fadeIn max-h-[90vh] overflow-y-auto flex flex-col">
+                <div className="flex justify-between mb-4 border-b pb-2"><h3 className="font-bold text-blue-800">Follow Up</h3><button onClick={onClose}><X /></button></div>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold block mb-1">Inquiry Status</label>
+                        <select {...register('status')} className="border p-2 rounded w-full text-sm">
+                            <option value="Open">Open</option>
+                            <option value="InProgress">InProgress</option>
+                            <option value="Recall">Recall</option>
+                            <option value="Close">Close</option>
+                            <option value="Complete">Complete</option>
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-xs font-bold block mb-1">Follow-Up Date</label><input type="date" {...register('fDate')} required className="border p-2 rounded w-full text-sm" /></div>
+                        <div>
+                            <label className="text-xs font-bold block mb-1">Time (12h)</label>
+                            <TimePicker12Hour value={watch('fTime')} onChange={(val) => setValue('fTime', val)} />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold block mb-1">Previous Remarks</label>
+                        <div className="border p-2 rounded w-full text-sm h-24 overflow-y-auto bg-gray-50 text-gray-700 font-mono whitespace-pre-wrap">
+                            {inquiry.followUpDetails || 'No previous remarks'}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold block mb-1 mt-2">New Discussion / Remarks</label>
+                        <textarea {...register('newRemarks')} className="border p-2 rounded w-full text-sm" rows="2" placeholder="Enter new remarks..."></textarea>
+                    </div>
+
+                    <button disabled={loading} type="submit" className="bg-blue-600 text-white w-full py-2 rounded mt-2 hover:bg-blue-700 font-bold shadow-sm disabled:opacity-70 disabled:cursor-not-allowed">
+                        {loading ? 'Saving...' : 'Update Status'}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 
 const TodaysVisitedReport = () => {
     const navigate = useNavigate();
@@ -24,6 +128,11 @@ const TodaysVisitedReport = () => {
     // View Modal State
     const [showViewModal, setShowViewModal] = useState(false);
     const [viewingVisitor, setViewingVisitor] = useState(null);
+    
+    // Inquiry Modals State for Follow-ups
+    const [editInquiryData, setEditInquiryData] = useState(null);
+    const [viewInquiry, setViewInquiry] = useState(null);
+    const [showFollowUpModal, setShowFollowUpModal] = useState(null);
     
     const [filters, setFilters] = useState({
         fromDate: new Date().toISOString().split('T')[0],
@@ -130,6 +239,41 @@ const TodaysVisitedReport = () => {
                 console.error("Error deleting visitor:", error);
                 toast.error("Failed to delete visitor");
             }
+        }
+    };
+
+    const handleDeleteInquiry = async (id) => {
+        if (window.confirm('Are you sure you want to delete this inquiry?')) {
+            try {
+                await axios.delete(`${import.meta.env.VITE_API_URL}/transaction/inquiry/${id}`, { withCredentials: true });
+                toast.success('Inquiry deleted successfully');
+                fetchVisitors();
+            } catch (error) {
+                console.error("Error deleting inquiry:", error);
+                toast.error("Failed to delete inquiry");
+            }
+        }
+    };
+
+    const handleSaveInquiry = async ({ id, data }) => {
+        try {
+            await axios.put(`${import.meta.env.VITE_API_URL}/transaction/inquiry/${id}`, data, { withCredentials: true });
+            toast.success("Inquiry Updated Successfully");
+            setEditInquiryData(null);
+            fetchVisitors();
+        } catch (error) {
+            toast.error("Failed to update inquiry");
+        }
+    };
+
+    const handleSaveFollowUp = async ({ id, data }) => {
+        try {
+            await axios.put(`${import.meta.env.VITE_API_URL}/transaction/inquiry/${id}`, data, { withCredentials: true });
+            toast.success("Follow-up Updated");
+            setShowFollowUpModal(null);
+            fetchVisitors();
+        } catch (error) {
+            toast.error("Failed to update follow-up");
         }
     };
 
@@ -335,9 +479,10 @@ const TodaysVisitedReport = () => {
                                     <th className="p-2 border font-semibold text-center w-36">Contact</th>
                                     <th className="p-2 border font-semibold">Gender</th>
                                     <th className="p-2 border font-semibold text-center">Status</th>
-                                    <th className="p-2 border font-semibold">Followup Date</th>
-                                    <th className="p-2 border font-semibold">Followup Time</th>
-                                    <th className="p-2 border font-semibold w-36">Followup Details</th>
+                                    <th className="p-2 border font-bold text-blue-800 text-left uppercase tracking-wider">Followup Date</th>
+                                    <th className="p-2 border font-bold text-blue-800 text-left uppercase tracking-wider">Followup Time</th>
+                                    <th className="p-2 border font-bold text-blue-800 text-left uppercase tracking-wider">Followup Details</th>
+                                    <th className="p-2 border font-bold text-blue-800 text-center uppercase tracking-wider sticky right-0 bg-blue-50/90 print:hidden">Actions</th>
                                 </tr>
                             </thead>
                         )}
@@ -408,6 +553,9 @@ const TodaysVisitedReport = () => {
                                             </td>
                                             <td className="p-2 border text-center sticky right-0 bg-white print:hidden">
                                                 <div className="flex justify-center gap-1">
+                                                    <button onClick={() => window.open(`tel:${visitor.mobileNumber}`, '_self')} className="bg-purple-50 text-purple-600 border border-purple-200 p-1.5 rounded hover:bg-purple-100 transition" title="Call">
+                                                        <PhoneCall size={14} />
+                                                    </button>
                                                     <button onClick={() => navigate('/master/student-admission', { state: { visitorData: visitor } })} className="bg-green-50 text-green-600 border border-green-200 p-1.5 rounded hover:bg-green-100 transition" title="Take Admission">
                                                         <GraduationCap size={14} />
                                                     </button>
@@ -476,6 +624,22 @@ const TodaysVisitedReport = () => {
                                             <td className="p-2 border text-gray-600 truncate max-w-xs" title={hist.followUpDetails}>
                                                 {hist.followUpDetails ? (hist.followUpDetails.length > 14 ? `${hist.followUpDetails.substring(0, 14)}...` : hist.followUpDetails) : '-'}
                                             </td>
+                                            <td className="p-2 border text-center sticky right-0 bg-white print:hidden">
+                                                <div className="flex justify-center gap-1">
+                                                    <button onClick={() => setShowFollowUpModal(hist)} className="bg-purple-50 text-purple-600 border border-purple-200 p-1.5 rounded hover:bg-purple-100 transition" title="Follow Up">
+                                                        <PhoneCall size={14} />
+                                                    </button>
+                                                    <button onClick={() => setViewInquiry(hist)} className="bg-indigo-50 text-indigo-600 border border-indigo-200 p-1.5 rounded hover:bg-indigo-100 transition" title="View Details">
+                                                        <Eye size={14} />
+                                                    </button>
+                                                    <button onClick={() => setEditInquiryData(hist)} className="bg-blue-50 text-blue-600 border border-blue-200 p-1.5 rounded hover:bg-blue-100 transition" title="Edit">
+                                                        <Edit size={14} />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteInquiry(hist._id)} className="bg-red-50 text-red-600 border border-red-200 p-1.5 rounded hover:bg-red-100 transition" title="Delete">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))
                                 )
@@ -492,6 +656,26 @@ const TodaysVisitedReport = () => {
                             setShowViewModal(false);
                             setViewingVisitor(null);
                         }}
+                    />
+                )}
+                
+                {/* Inquiry Modals */}
+                {viewInquiry && <InquiryViewModal inquiry={viewInquiry} onClose={() => setViewInquiry(null)} />}
+                
+                {editInquiryData && (
+                    <InquiryForm
+                        mode="Edit"
+                        initialData={editInquiryData}
+                        onClose={() => setEditInquiryData(null)}
+                        onSave={handleSaveInquiry}
+                    />
+                )}
+                
+                {showFollowUpModal && (
+                    <FollowUpForm
+                        inquiry={showFollowUpModal}
+                        onClose={() => setShowFollowUpModal(null)}
+                        onSave={handleSaveFollowUp}
                     />
                 )}
             </div>

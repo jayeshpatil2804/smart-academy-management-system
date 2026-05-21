@@ -80,6 +80,7 @@ const Material = lazy(() => import("./pages/admin/master/Material"));
 const FreeLearning = lazy(() => import("./pages/admin/master/FreeLearning"));
 const CloudinaryManager = lazy(() => import("./pages/admin/utility/CloudinaryManager"));
 const LocationMaster = lazy(() => import("./pages/admin/utility/LocationMaster"));
+const SmsStation = lazy(() => import("./pages/admin/utility/SmsStation"));
 
 // Transaction Pages
 const InquiryPage = lazy(() => import("./pages/admin/transaction/InquiryPage"));
@@ -674,6 +675,16 @@ function App() {
                   <PrivateRoute>
                     <Suspense fallback={<Loading />}>
                         <LocationMaster />
+                    </Suspense>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/utility/sms-station"
+                element={
+                  <PrivateRoute>
+                    <Suspense fallback={<Loading />}>
+                        <SmsStation />
                     </Suspense>
                   </PrivateRoute>
                 }

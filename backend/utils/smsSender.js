@@ -1,10 +1,54 @@
 const axios = require('axios');
+const SmsSetting = require('../models/SmsSetting');
+const SmsLog = require('../models/SmsLog');
 
-const sendSMS = async (mobileNumber, message) => {
+const sendSMS = async (mobileNumber, message, category = 'General') => {
     try {
         if (!mobileNumber) {
             console.log("SMS Skipped: No mobile number provided.");
             return;
+        }
+
+        // 1. Check Global & Category SMS Setting
+        let setting = await SmsSetting.findOne();
+        if (!setting) {
+            // Create default setting if it doesn't exist
+            setting = await SmsSetting.create({ 
+                isGlobalEnabled: true,
+                isAdmissionEnabled: true,
+                isFeesEnabled: true,
+                isAttendanceEnabled: true,
+                isInquiryEnabled: true
+            });
+        }
+
+        if (!setting.isGlobalEnabled) {
+            console.log("SMS Skipped: SMS sending is disabled globally.");
+            await SmsLog.create({
+                mobileNumber,
+                message,
+                status: 'disabled',
+                category
+            });
+            return { status: 'disabled', message: 'SMS sending is disabled globally' };
+        }
+
+        // Check specific category
+        let isCategoryEnabled = true;
+        if (category === 'Admission') isCategoryEnabled = setting.isAdmissionEnabled;
+        else if (category === 'Fees') isCategoryEnabled = setting.isFeesEnabled;
+        else if (category === 'Attendance') isCategoryEnabled = setting.isAttendanceEnabled;
+        else if (category === 'Inquiry') isCategoryEnabled = setting.isInquiryEnabled;
+
+        if (!isCategoryEnabled) {
+            console.log(`SMS Skipped: SMS sending is disabled for category: ${category}`);
+            await SmsLog.create({
+                mobileNumber,
+                message,
+                status: 'disabled',
+                category
+            });
+            return { status: 'disabled', message: `SMS sending is disabled for ${category}` };
         }
 
         const username = process.env.SMS_USERNAME;
@@ -27,10 +71,32 @@ const sendSMS = async (mobileNumber, message) => {
         });
 
         console.log(`SMS Sent to ${mobileNumber}:`, response.data);
+
+        // 2. Log success
+        await SmsLog.create({
+            mobileNumber,
+            message,
+            status: 'success',
+            response: response.data
+        });
+
         return response.data;
 
     } catch (error) {
         console.error("SMS Sending Failed:", error.message);
+        
+        // 3. Log failure
+        try {
+            await SmsLog.create({
+                mobileNumber,
+                message,
+                status: 'failed',
+                error: error.message
+            });
+        } catch (logError) {
+            console.error("Failed to create SMS Log:", logError.message);
+        }
+        
         // We don't throw error here to avoid breaking the main registration flow
     }
 };

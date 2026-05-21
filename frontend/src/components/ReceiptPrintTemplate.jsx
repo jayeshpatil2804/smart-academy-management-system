@@ -190,15 +190,40 @@ const ReceiptPrintTemplate = React.forwardRef(({ receipt }, ref) => {
       }}>
         <div style={{ flex: 1 }}>
           <span style={{ color: '#0066cc' }}>TOTAL FEES : </span>
-          <span>{receipt.student?.totalFees?.toLocaleString('en-IN')}.00</span>
+          <span>
+            {receipt.student?.totalFees?.toLocaleString('en-IN')}.00
+            {receipt.course?.admissionFees > 0 && ` + ${receipt.course.admissionFees.toLocaleString('en-IN')}`}
+          </span>
         </div>
         <div style={{ flex: 1, textAlign: 'center' }}>
           <span style={{ color: '#0066cc' }}>DUE FEES : </span>
-          <span>{receipt.student?.pendingFees?.toLocaleString('en-IN')}.00</span>
+          <span>
+            {(() => {
+                // Use the pre-calculated due from the server if available
+                if (receipt.student?.calculatedTotalDue !== undefined) {
+                    return `${receipt.student.calculatedTotalDue.toLocaleString('en-IN')}.00`;
+                }
+
+                // Fallback to manual calculation if not provided
+                const courseDue = receipt.student?.pendingFees || 0;
+                const courseAdmFees = receipt.course?.admissionFees || 0;
+                const paidAdmFees = receipt.student?.admissionFeeAmount || 0;
+                const pendingAdm = Math.max(0, courseAdmFees - paidAdmFees);
+
+                if (courseDue > 0 && pendingAdm > 0) {
+                    return `${courseDue.toLocaleString('en-IN')}.00 + ${pendingAdm.toLocaleString('en-IN')}`;
+                } else if (courseDue > 0) {
+                    return `${courseDue.toLocaleString('en-IN')}.00`;
+                } else if (pendingAdm > 0) {
+                    return `${pendingAdm.toLocaleString('en-IN')}.00`;
+                }
+                return '0.00';
+            })()}
+          </span>
         </div>
         <div style={{ flex: 1, textAlign: 'right' }}>
           <span style={{ color: '#0066cc' }}>MONTHLY FEES : </span>
-          <span>{receipt.student?.emiDetails?.monthlyInstallment?.toLocaleString('en-IN')}.00</span>
+          <span>{receipt.student?.emiDetails?.monthlyInstallment?.toLocaleString('en-IN') || '0'}.00</span>
         </div>
       </div>
 
