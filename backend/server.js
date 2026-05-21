@@ -24,19 +24,50 @@ const allowedOrigins = [
   "http://localhost:5174",
   "https://smartinstituteonline.com",
   "https://www.smartinstituteonline.com",
-  "https://smar.smartinstituteonline.com" // Allow itself
+  "https://smar.smartinstituteonline.com",
+  "https://api.smartinstituteonline.com",
 ];
+
+// Helper to check if origin is allowed (supports exact match and subdomain patterns)
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+
+  // Exact match
+  if (allowedOrigins.indexOf(origin) !== -1) return true;
+
+  // Normalize by removing trailing slash
+  const normalizedOrigin = origin.replace(/\/+$/, "");
+  if (allowedOrigins.indexOf(normalizedOrigin) !== -1) return true;
+
+  // Pattern match: smartinstituteonline.com and its subdomains
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    if (
+      hostname === "smartinstituteonline.com" ||
+      hostname.endsWith(".smartinstituteonline.com") ||
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost")
+    ) {
+      return true;
+    }
+  } catch (e) {
+    // Invalid URL, fall through to rejection
+  }
+
+  return false;
+}
+
 // CORS Middleware (Must be before Rate Limiter for 429s to work in browser)
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    const allowed = isOriginAllowed(origin);
+    if (allowed) {
       callback(null, true);
     } else {
       console.log("Blocked by CORS:", origin);
-      callback(new Error('Not allowed by CORS'));
+      // Use false instead of an Error to gracefully deny without sending 503
+      callback(null, false);
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
